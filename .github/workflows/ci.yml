@@ -46,8 +46,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_business_test
-      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ai_business_test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_business_test
+      TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_business_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
