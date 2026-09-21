@@ -1,6 +1,6 @@
 # ADR-0001: Proposed MVP Stack
 
-- **الحالة:** Proposed
+- **الحالة:** Accepted for Bootstrap
 - **التاريخ:** 2026-09-21
 
 ## السياق
@@ -37,8 +37,8 @@
 
 ## قرارات يجب حسمها في الأسبوع 1
 
-1. NestJS أم Fastify مباشرة؟
-2. Drizzle أم Prisma؟
+1. تم اعتماد NestJS مع Fastify adapter.
+2. تم اعتماد Drizzle.
 3. مزود الهوية والاستضافة والمنطقة الجغرافية.
 4. Queue مبنية على PostgreSQL أم Redis.
 5. أول مزود AI ومزود fallback وحدود الميزانية.

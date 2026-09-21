@@ -21,6 +21,7 @@
 ## الأدوات المقترحة للـMVP
 
 ### Read Tools
+
 - `search_products(query, filters)`
 - `get_product(product_id)`
 - `get_variant_availability(variant_id, quantity)`
@@ -30,6 +31,7 @@
 - `get_order_status(order_number, verification)`
 
 ### Command Tools
+
 - `create_or_update_draft_order(...)`
 - `confirm_draft_order(draft_id, customer_confirmation, idempotency_key)`
 - `request_human_handoff(reason, summary)`
@@ -46,13 +48,13 @@ Command Tools تنفذ authorization وvalidation والمعاملة؛ مواف�
 
 ## Routing والتكلفة
 
-| نوع الطلب | المسار الافتراضي |
-|---|---|
-| تحية/FAQ ثابت | رد جاهز أو Retrieval دون LLM عند الإمكان |
-| سعر/توفر بمنتج محدد | Tool مباشر + نموذج سريع للصياغة عند الحاجة |
-| بحث بلغة طبيعية أو بيانات ناقصة | نموذج سريع + Read Tools |
-| تفاوض أو مقارنة مركبة | نموذج أقوى مع Budget محدود |
-| غموض مستمر، شكوى، استثناء | Human Handoff |
+| نوع الطلب                       | المسار الافتراضي                           |
+| ------------------------------- | ------------------------------------------ |
+| تحية/FAQ ثابت                   | رد جاهز أو Retrieval دون LLM عند الإمكان   |
+| سعر/توفر بمنتج محدد             | Tool مباشر + نموذج سريع للصياغة عند الحاجة |
+| بحث بلغة طبيعية أو بيانات ناقصة | نموذج سريع + Read Tools                    |
+| تفاوض أو مقارنة مركبة           | نموذج أقوى مع Budget محدود                 |
+| غموض مستمر، شكوى، استثناء       | Human Handoff                              |
 
 كل Route يسجل السبب، النموذج، Token usage، latency والتكلفة المقدرة.
 
