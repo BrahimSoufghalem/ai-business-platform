@@ -82,3 +82,10 @@ pnpm dev
 ```
 
 See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-first-pilot-channel.md).
+
+### Foundation security gates
+
+- OIDC verification is provider-neutral and validates issuer, audience, expiry and signature.
+- Tenant-scoped transactions set both the candidate tenant and verified identity subject.
+- PostgreSQL RLS verifies active membership; supplying another tenant ID is insufficient.
+- GitHub CI applies migrations to a real PostgreSQL service and runs cross-tenant integration tests.

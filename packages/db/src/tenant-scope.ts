@@ -1,10 +1,14 @@
 import { sql } from 'drizzle-orm';
-import type { TenantId } from '@ai-business/domain';
+import type { TenantContext } from '@ai-business/domain';
 
-/**
- * Execute this statement with SET LOCAL semantics inside the same transaction
- * as tenant-scoped queries. Never use a client-provided tenant ID.
- */
-export function tenantScopeStatement(tenantId: TenantId) {
-  return sql`select set_config('app.tenant_id', ${tenantId}, true)`;
+/** Builds the transaction-local settings statement used by Drizzle callers. */
+export function tenantSessionStatement(context: TenantContext) {
+  if (context.actor.type !== 'user') {
+    throw new Error('User tenant sessions require a verified user identity.');
+  }
+
+  return sql`select
+    set_config('app.tenant_id', ${context.tenantId}, true),
+    set_config('app.identity_subject', ${context.actor.id}, true),
+    set_config('app.correlation_id', ${context.correlationId}, true)`;
 }

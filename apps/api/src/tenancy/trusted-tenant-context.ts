@@ -1,29 +1,22 @@
+import type { VerifiedIdentity } from '@ai-business/auth';
 import { parseTenantId, type TenantContext } from '@ai-business/domain';
 
-export interface AuthenticatedClaims {
-  readonly subject: string;
-  readonly tenantId: string;
-  readonly correlationId: string;
-}
-
 /**
- * Creates a tenant context only from claims already verified by the auth layer.
- * Never call this with tenant IDs read from request bodies or arbitrary headers.
+ * Builds a candidate tenant context from a cryptographically verified identity.
+ * PostgreSQL RLS still verifies active membership for the candidate tenant.
  */
-export function createTenantContextFromTrustedClaims(claims: AuthenticatedClaims): TenantContext {
-  if (claims.subject.trim().length === 0) {
-    throw new Error('Authenticated subject is required.');
-  }
-  if (claims.correlationId.trim().length === 0) {
+export function createCandidateTenantContext(
+  identity: VerifiedIdentity,
+  candidateTenantId: string,
+  correlationId: string,
+): TenantContext {
+  if (correlationId.trim().length === 0) {
     throw new Error('Correlation ID is required.');
   }
 
   return {
-    tenantId: parseTenantId(claims.tenantId),
-    actor: {
-      type: 'user',
-      id: claims.subject,
-    },
-    correlationId: claims.correlationId,
+    tenantId: parseTenantId(candidateTenantId),
+    actor: { type: 'user', id: identity.subject },
+    correlationId,
   };
 }

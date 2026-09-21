@@ -35,4 +35,15 @@ A tenant ID may only originate from verified authentication claims or a verified
 
 ## Database tenant scope
 
-Tenant-scoped transactions must call `tenantScopeStatement()` inside the same transaction before running scoped queries. Runtime database roles must not own tables and must not have `BYPASSRLS`.
+Tenant-scoped transactions must call `withTenantTransaction()` or `tenantSessionStatement()` inside the same transaction before running scoped queries. The transaction sets the candidate tenant and verified OIDC subject; RLS independently confirms active membership. Runtime database roles must not own tables and must not have `BYPASSRLS`.
+
+## Authentication boundary
+
+The `@ai-business/auth` package validates OIDC tokens through issuer, audience, expiry, signature, and JWKS. Tenant membership does not come from an unchecked request value or ordinary JWT claim; PostgreSQL RLS evaluates it against the memberships table.
+
+Run the database integration gate with:
+
+```bash
+DATABASE_URL=postgresql://... TEST_DATABASE_URL=postgresql://... pnpm db:migrate
+pnpm --filter @ai-business/db test:integration
+```

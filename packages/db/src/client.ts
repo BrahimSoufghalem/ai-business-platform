@@ -1,0 +1,46 @@
+import postgres from 'postgres';
+import type { TenantContext } from '@ai-business/domain';
+
+export type DatabaseClient = postgres.Sql;
+export type TenantTransaction = postgres.TransactionSql;
+
+export function createDatabaseClient(databaseUrl: string): DatabaseClient {
+  if (databaseUrl.trim().length === 0) {
+    throw new Error('Database URL is required.');
+  }
+
+  return postgres(databaseUrl, {
+    max: 10,
+    idle_timeout: 20,
+    connect_timeout: 10,
+  });
+}
+
+/**
+ * Establishes the tenant, verified identity subject, and correlation ID using
+ * transaction-local settings. PostgreSQL RLS verifies active membership.
+ */
+export async function withTenantTransaction<T>(
+  client: DatabaseClient,
+  context: TenantContext,
+  operation: (transaction: TenantTransaction) => Promise<T>,
+): Promise<T> {
+  if (context.actor.type !== 'user') {
+    throw new Error('User tenant transactions require a verified user identity.');
+  }
+
+  const result = await client.begin(async (transaction) => {
+    await transaction`
+      select
+        set_config('app.tenant_id', ${context.tenantId}, true),
+        set_config('app.identity_subject', ${context.actor.id}, true),
+        set_config('app.correlation_id', ${context.correlationId}, true)
+    `;
+
+    return operation(transaction);
+  });
+
+  // postgres.js unwraps arrays of promises at the type level; an async callback
+  // has already resolved the operation before the transaction is committed.
+  return result as T;
+}
