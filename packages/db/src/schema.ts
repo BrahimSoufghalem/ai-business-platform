@@ -45,6 +45,21 @@ export const stockReservationStatus = pgEnum('stock_reservation_status', [
   'committed',
   'expired',
 ]);
+export const draftOrderStatus = pgEnum('draft_order_status', [
+  'draft',
+  'awaiting_confirmation',
+  'confirmed',
+  'cancelled',
+]);
+export const orderStatus = pgEnum('order_status', [
+  'new',
+  'confirmed',
+  'preparing',
+  'shipped',
+  'delivered',
+  'cancelled',
+]);
+export const orderCommandType = pgEnum('order_command_type', ['confirm', 'transition', 'cancel']);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -431,6 +446,277 @@ export const inventoryMovements = pgTable(
     check(
       'inventory_movements_adjust_reason_required',
       sql`${table.type} <> 'adjust' OR length(trim(coalesce(${table.reason}, ''))) > 0`,
+    ),
+  ],
+);
+
+export const draftOrders = pgTable(
+  'draft_orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    status: draftOrderStatus('status').notNull().default('draft'),
+    version: integer('version').notNull().default(1),
+    customerName: text('customer_name'),
+    customerPhone: text('customer_phone'),
+    customerEmail: text('customer_email'),
+    shippingAddress: jsonb('shipping_address').$type<Record<string, unknown>>(),
+    notes: text('notes'),
+    customFields: jsonb('custom_fields').$type<Record<string, unknown>>().notNull().default({}),
+    currency: text('currency').notNull().default('DZD'),
+    subtotal: numeric('subtotal', { precision: 14, scale: 2 }).notNull().default('0'),
+    discountAmount: numeric('discount_amount', { precision: 14, scale: 2 }).notNull().default('0'),
+    shippingAmount: numeric('shipping_amount', { precision: 14, scale: 2 }).notNull().default('0'),
+    total: numeric('total', { precision: 14, scale: 2 }).notNull().default('0'),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }),
+    customerApprovedAt: timestamp('customer_approved_at', { withTimezone: true }),
+    approvalSource: text('approval_source'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('draft_orders_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('draft_orders_tenant_status_idx').on(table.tenantId, table.status),
+    check('draft_orders_version_positive', sql`${table.version} > 0`),
+    check('draft_orders_subtotal_nonnegative', sql`${table.subtotal} >= 0`),
+    check('draft_orders_discount_nonnegative', sql`${table.discountAmount} >= 0`),
+    check('draft_orders_shipping_nonnegative', sql`${table.shippingAmount} >= 0`),
+    check('draft_orders_total_nonnegative', sql`${table.total} >= 0`),
+    check(
+      'draft_orders_total_consistent',
+      sql`${table.total} = ${table.subtotal} - ${table.discountAmount} + ${table.shippingAmount}`,
+    ),
+  ],
+);
+
+export const draftOrderItems = pgTable(
+  'draft_order_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    draftOrderId: uuid('draft_order_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    locationId: uuid('location_id').notNull(),
+    productNameSnapshot: text('product_name_snapshot').notNull(),
+    productCodeSnapshot: text('product_code_snapshot').notNull(),
+    variantNameSnapshot: text('variant_name_snapshot'),
+    skuSnapshot: text('sku_snapshot').notNull(),
+    variantAttributesSnapshot: jsonb('variant_attributes_snapshot')
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    quantity: integer('quantity').notNull(),
+    unitPrice: numeric('unit_price', { precision: 14, scale: 2 }).notNull(),
+    lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
+    currency: text('currency').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.draftOrderId],
+      foreignColumns: [draftOrders.tenantId, draftOrders.id],
+      name: 'draft_order_items_tenant_draft_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.id],
+      name: 'draft_order_items_tenant_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.id],
+      name: 'draft_order_items_tenant_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [inventoryLocations.tenantId, inventoryLocations.id],
+      name: 'draft_order_items_tenant_location_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('draft_order_items_draft_variant_location_uq').on(
+      table.draftOrderId,
+      table.variantId,
+      table.locationId,
+    ),
+    index('draft_order_items_tenant_draft_idx').on(table.tenantId, table.draftOrderId),
+    check('draft_order_items_quantity_positive', sql`${table.quantity} > 0`),
+    check('draft_order_items_unit_price_nonnegative', sql`${table.unitPrice} >= 0`),
+    check(
+      'draft_order_items_line_total_consistent',
+      sql`${table.lineTotal} = ${table.unitPrice} * ${table.quantity}`,
+    ),
+  ],
+);
+
+export const orders = pgTable(
+  'orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'restrict' }),
+    sourceDraftOrderId: uuid('source_draft_order_id').notNull(),
+    number: text('number').notNull(),
+    status: orderStatus('status').notNull().default('new'),
+    version: integer('version').notNull().default(1),
+    customerName: text('customer_name').notNull(),
+    customerPhone: text('customer_phone').notNull(),
+    customerEmail: text('customer_email'),
+    shippingAddress: jsonb('shipping_address').$type<Record<string, unknown>>().notNull(),
+    notes: text('notes'),
+    customFields: jsonb('custom_fields').$type<Record<string, unknown>>().notNull().default({}),
+    currency: text('currency').notNull(),
+    subtotal: numeric('subtotal', { precision: 14, scale: 2 }).notNull(),
+    discountAmount: numeric('discount_amount', { precision: 14, scale: 2 }).notNull(),
+    shippingAmount: numeric('shipping_amount', { precision: 14, scale: 2 }).notNull(),
+    total: numeric('total', { precision: 14, scale: 2 }).notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    preparingAt: timestamp('preparing_at', { withTimezone: true }),
+    shippedAt: timestamp('shipped_at', { withTimezone: true }),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.sourceDraftOrderId],
+      foreignColumns: [draftOrders.tenantId, draftOrders.id],
+      name: 'orders_tenant_source_draft_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('orders_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('orders_tenant_number_uq').on(table.tenantId, table.number),
+    uniqueIndex('orders_tenant_source_draft_uq').on(table.tenantId, table.sourceDraftOrderId),
+    index('orders_tenant_status_created_idx').on(table.tenantId, table.status, table.createdAt),
+    check('orders_version_positive', sql`${table.version} > 0`),
+    check('orders_subtotal_nonnegative', sql`${table.subtotal} >= 0`),
+    check('orders_discount_nonnegative', sql`${table.discountAmount} >= 0`),
+    check('orders_shipping_nonnegative', sql`${table.shippingAmount} >= 0`),
+    check('orders_total_nonnegative', sql`${table.total} >= 0`),
+    check(
+      'orders_total_consistent',
+      sql`${table.total} = ${table.subtotal} - ${table.discountAmount} + ${table.shippingAmount}`,
+    ),
+  ],
+);
+
+export const orderItems = pgTable(
+  'order_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    orderId: uuid('order_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    locationId: uuid('location_id').notNull(),
+    reservationId: uuid('reservation_id').notNull(),
+    productNameSnapshot: text('product_name_snapshot').notNull(),
+    productCodeSnapshot: text('product_code_snapshot').notNull(),
+    variantNameSnapshot: text('variant_name_snapshot'),
+    skuSnapshot: text('sku_snapshot').notNull(),
+    variantAttributesSnapshot: jsonb('variant_attributes_snapshot')
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    quantity: integer('quantity').notNull(),
+    unitPrice: numeric('unit_price', { precision: 14, scale: 2 }).notNull(),
+    lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
+    currency: text('currency').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [orders.tenantId, orders.id],
+      name: 'order_items_tenant_order_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.id],
+      name: 'order_items_tenant_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.id],
+      name: 'order_items_tenant_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [inventoryLocations.tenantId, inventoryLocations.id],
+      name: 'order_items_tenant_location_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.reservationId],
+      foreignColumns: [stockReservations.tenantId, stockReservations.id],
+      name: 'order_items_tenant_reservation_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('order_items_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('order_items_tenant_order_idx').on(table.tenantId, table.orderId),
+    check('order_items_quantity_positive', sql`${table.quantity} > 0`),
+    check('order_items_unit_price_nonnegative', sql`${table.unitPrice} >= 0`),
+    check(
+      'order_items_line_total_consistent',
+      sql`${table.lineTotal} = ${table.unitPrice} * ${table.quantity}`,
+    ),
+  ],
+);
+
+export const orderCommands = pgTable(
+  'order_commands',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    orderId: uuid('order_id').notNull(),
+    draftOrderId: uuid('draft_order_id'),
+    type: orderCommandType('type').notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    commandFingerprint: text('command_fingerprint').notNull(),
+    resultStatus: orderStatus('result_status').notNull(),
+    actorId: text('actor_id').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [orders.tenantId, orders.id],
+      name: 'order_commands_tenant_order_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.draftOrderId],
+      foreignColumns: [draftOrders.tenantId, draftOrders.id],
+      name: 'order_commands_tenant_draft_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('order_commands_tenant_idempotency_uq').on(table.tenantId, table.idempotencyKey),
+    index('order_commands_tenant_order_idx').on(table.tenantId, table.orderId),
+  ],
+);
+
+export const orderTransitions = pgTable(
+  'order_transitions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    orderId: uuid('order_id').notNull(),
+    fromStatus: orderStatus('from_status'),
+    toStatus: orderStatus('to_status').notNull(),
+    actorId: text('actor_id').notNull(),
+    reason: text('reason'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [orders.tenantId, orders.id],
+      name: 'order_transitions_tenant_order_fk',
+    }).onDelete('restrict'),
+    index('order_transitions_tenant_order_created_idx').on(
+      table.tenantId,
+      table.orderId,
+      table.createdAt,
     ),
   ],
 );

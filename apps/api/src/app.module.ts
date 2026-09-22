@@ -4,6 +4,7 @@ import { CatalogModule } from './catalog/catalog.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InventoryModule } from './inventory/inventory.module.js';
+import { OrderModule } from './orders/order.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { StorageModule } from './storage/storage.module.js';
 import { TenantModule } from './tenants/tenant.module.js';
@@ -17,6 +18,7 @@ import { TenantModule } from './tenants/tenant.module.js';
     CatalogModule,
     ProductsModule,
     InventoryModule,
+    OrderModule,
   ],
   controllers: [HealthController],
 })

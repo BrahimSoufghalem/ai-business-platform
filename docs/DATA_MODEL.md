@@ -29,10 +29,12 @@
 | customer_addresses    | customer_id, label, address fields                                             | Snapshot لاحقًا داخل الطلب          |
 | conversations         | tenant_id, customer_id, channel, status, assigned_to                           | سياق المحادثة                       |
 | messages              | conversation_id, direction, sender_type, content, external_id                  | Idempotent ingest                   |
-| draft_orders          | tenant_id, customer_id, conversation_id, status, expires_at                    | قابل للتعديل قبل التأكيد            |
-| draft_order_items     | draft_order_id, variant_id, quantity, quoted_price                             | اقتراح الطلب                        |
-| orders                | tenant_id, customer_id, number, status, totals, address_snapshot               | سجل مؤكد                            |
-| order_items           | order_id, variant_id, product_snapshot, unit_price, quantity                   | Snapshot تاريخي                     |
+| draft_orders          | tenant_id, status, version, customer/address data, totals                      | قابل للتعديل قبل التأكيد            |
+| draft_order_items     | draft_order_id, variant_id, location_id, quantity, quoted_price                | عرض مشتق من الكتالوج                |
+| orders                | tenant_id, source_draft_order_id, number, status, totals, address_snapshot     | سجل مؤكد                            |
+| order_items           | order_id, variant_id, reservation_id, product/price snapshots, quantity        | Snapshot تاريخي                     |
+| order_commands        | tenant_id, order_id, type, idempotency_key, fingerprint                        | سجل أوامر قابل لإعادة المحاولة      |
+| order_transitions     | tenant_id, order_id, from_status, to_status, actor                             | تاريخ انتقالات append-only          |
 | business_rules        | tenant_id, key, value, version, status                                         | قواعد Typed ومنشورة                 |
 | knowledge_entries     | tenant_id, title, content, status, version                                     | FAQ ومعرفة المتجر                   |
 | ai_runs               | tenant_id, conversation_id, model, prompt_version, usage, outcome              | مراقبة وتكلفة                       |
