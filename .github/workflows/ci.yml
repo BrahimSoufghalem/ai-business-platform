@@ -91,6 +91,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @ai-business/domain build
       - run: pnpm --filter @ai-business/ai-gateway build
+      - run: pnpm --filter @ai-business/customer-agent build
       - run: pnpm --filter @ai-business/db build
       - run: pnpm db:migrate
       - run: pnpm --filter @ai-business/db test:integration

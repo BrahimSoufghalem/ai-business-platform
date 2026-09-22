@@ -41,6 +41,10 @@
 - رفض Tool input قبل استدعاء Handler، والتحقق من Tool output قبل إعادته للنموذج.
 - عدم إعادة محاولة Provider بعد نجاح Command Tool؛ الانتقال إلى Handoff لمنع تكرار الأثر.
 - مفاتيح المزود تبقى داخل Adapter وتأتي من Secret Manager؛ لا تدخل Prompt أو Telemetry.
+- Router يوقف طلبات كشف التعليمات/الأسرار قبل أي قراءة لبيانات المتجر.
+- الذاكرة تستبعد الرسائل الداخلية وتحجب البريد والهاتف والتوكنات قبل Context وTrace.
+- Price/availability language في الرد تُرفض ما لم تحمل Evidence من Tool المختصة في الـRun نفسه.
+- Product/Variant IDs في Structured Output تُقبل فقط إذا ظهرت في نتيجة بحث موثقة.
 
 ### الطلبات والمخزون
 

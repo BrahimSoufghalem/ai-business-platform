@@ -59,6 +59,19 @@ export interface PersistedPriceDecision extends PriceDecision {
   readonly createdAt: string;
 }
 
+export interface PublishedBusinessRuleSetView {
+  readonly id: string;
+  readonly key: string;
+  readonly name: string;
+  readonly description: string | null;
+  readonly published: {
+    readonly id: string;
+    readonly version: number;
+    readonly policy: PricingPolicy;
+    readonly publishedAt: string;
+  };
+}
+
 function jsonInput(value: unknown): JsonInput {
   return value as JsonInput;
 }
@@ -163,6 +176,59 @@ export class BusinessRuleService {
         if (set) sets.push(set);
       }
       return sets;
+    });
+  }
+
+  async listPublished(
+    identity: VerifiedIdentity,
+    correlationId: string,
+    candidateTenantId: string,
+    limit = 20,
+  ): Promise<PublishedBusinessRuleSetView[]> {
+    const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
+    return withTenantTransaction(this.database.client, context, async (transaction) => {
+      await authorizeTenantPermission(transaction, context.tenantId, 'configuration:read');
+      const safeLimit = Number.isSafeInteger(limit) ? Math.min(Math.max(limit, 1), 20) : 20;
+      const rows = await transaction<
+        {
+          id: string;
+          key: string;
+          name: string;
+          description: string | null;
+          versionId: string;
+          version: number;
+          policy: PricingPolicy;
+          publishedAt: Date;
+        }[]
+      >`
+        select
+          rule_set.id::text, rule_set.key, rule_set.name, rule_set.description,
+          version.id::text as "versionId", version.version, version.policy,
+          version.published_at as "publishedAt"
+        from business_rule_sets as rule_set
+        join business_rule_versions as version
+          on version.tenant_id = rule_set.tenant_id
+          and version.rule_set_id = rule_set.id
+          and version.status = 'published'
+        where rule_set.tenant_id = ${context.tenantId}
+        order by
+          case when rule_set.key = 'default-pricing' then 0 else 1 end,
+          rule_set.key,
+          rule_set.id
+        limit ${safeLimit}
+      `;
+      return rows.map((row) => ({
+        id: row.id,
+        key: row.key,
+        name: row.name,
+        description: row.description,
+        published: {
+          id: row.versionId,
+          version: row.version,
+          policy: row.policy,
+          publishedAt: row.publishedAt.toISOString(),
+        },
+      }));
     });
   }
 

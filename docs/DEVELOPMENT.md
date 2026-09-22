@@ -19,6 +19,8 @@ pnpm dev
 
 The API exposes `GET /api/health/live` and `GET /api/health/ready`. The web app runs on the default Next.js development port.
 
+Grounded static, FAQ, price and availability paths can be developed without an external model. To test natural-language discovery or comparison, configure an OpenAI-compatible endpoint through the `AI_PROVIDER_*` variables in `.env.example`; keep the key in a local/managed secret and never commit it.
+
 ## Quality commands
 
 ```bash
@@ -46,4 +48,5 @@ Run the database integration gate with:
 ```bash
 DATABASE_URL=postgresql://... TEST_DATABASE_URL=postgresql://... pnpm db:migrate
 pnpm --filter @ai-business/db test:integration
+pnpm --filter @ai-business/customer-agent test
 ```

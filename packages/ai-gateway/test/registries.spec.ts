@@ -80,4 +80,16 @@ describe('AI registries and telemetry redaction', () => {
       self: '[CIRCULAR]',
     });
   });
+
+  it('does not mistake UUIDs or monetary values for phone numbers', () => {
+    expect(
+      redactAiTelemetry({
+        productId: '10000000-0000-4000-8000-000000000004',
+        amount: '125000.00 DZD',
+      }),
+    ).toEqual({
+      productId: '10000000-0000-4000-8000-000000000004',
+      amount: '125000.00 DZD',
+    });
+  });
 });

@@ -38,15 +38,16 @@
 
 ## المحادثات
 
-| Method | Path                                      | الغرض                                                                   |
-| ------ | ----------------------------------------- | ----------------------------------------------------------------------- |
-| `GET`  | `/conversations`                          | صندوق مرتب بالأولوية مع `status`, `channel`, `assignment`, `q`, `limit` |
-| `POST` | `/conversations`                          | بدء محادثة وربطها بالعميل والسجلات الاختيارية                           |
-| `GET`  | `/conversations/:conversationId`          | السياق والرسائل وتاريخ الحالات                                          |
-| `POST` | `/conversations/:conversationId/messages` | إضافة رسالة idempotent عند وجود `externalId`                            |
-| `POST` | `/conversations/:conversationId/claim`    | استلام الموظف للمحادثة                                                  |
-| `POST` | `/conversations/:conversationId/status`   | تغيير الحالة أو الإغلاق/إعادة الفتح                                     |
-| `PUT`  | `/conversations/:conversationId/links`    | ربط عميل أو منتج أو Draft أو Order                                      |
+| Method | Path                                         | الغرض                                                                   |
+| ------ | -------------------------------------------- | ----------------------------------------------------------------------- |
+| `GET`  | `/conversations`                             | صندوق مرتب بالأولوية مع `status`, `channel`, `assignment`, `q`, `limit` |
+| `POST` | `/conversations`                             | بدء محادثة وربطها بالعميل والسجلات الاختيارية                           |
+| `GET`  | `/conversations/:conversationId`             | السياق والرسائل وتاريخ الحالات                                          |
+| `POST` | `/conversations/:conversationId/messages`    | إضافة رسالة idempotent عند وجود `externalId`                            |
+| `POST` | `/conversations/:conversationId/claim`       | استلام الموظف للمحادثة                                                  |
+| `POST` | `/conversations/:conversationId/status`      | تغيير الحالة أو الإغلاق/إعادة الفتح                                     |
+| `PUT`  | `/conversations/:conversationId/links`       | ربط عميل أو منتج أو Draft أو Order                                      |
+| `POST` | `/conversations/:conversationId/agent-reply` | تشغيل Grounded Agent لرسالة inbound محفوظة                              |
 
 القنوات المتاحة الآن: `internal`, `instagram`, `whatsapp`, `web`, `email`. قناة `internal` مخصصة للاختبار قبل تشغيل Webhooks الخارجية.
 
@@ -75,6 +76,8 @@
 - إعادة نفس `externalId` ونفس payload تعيد الرسالة الحالية مع `replayed: true`.
 - استعمال المفتاح نفسه مع محتوى مختلف يرجع `409 Conflict`.
 - الرسائل وتاريخ الحالات append-only بالنسبة إلى دور التشغيل.
+- `agent-reply` يقبل `messageId`؛ إعادة الرسالة نفسها تعيد رد البوت المخزن مع `replayed: true`.
+- كل رد Agent يحمل `runId` وأدلة Tool Calls، ولا يعمل عندما تكون المحادثة بيد موظف.
 
 ## الحالات والتعيين
 

@@ -4,6 +4,7 @@ import { CatalogModule } from './catalog/catalog.module.js';
 import { ConfigurationModule } from './configuration/configuration.module.js';
 import { ConversationModule } from './conversations/conversation.module.js';
 import { CustomerModule } from './customers/customer.module.js';
+import { CustomerAgentModule } from './customer-agent/customer-agent.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InventoryModule } from './inventory/inventory.module.js';
@@ -25,6 +26,7 @@ import { TenantModule } from './tenants/tenant.module.js';
     CustomerModule,
     ConversationModule,
     ConfigurationModule,
+    CustomerAgentModule,
   ],
   controllers: [HealthController],
 })

@@ -9,5 +9,6 @@ import { KnowledgeService } from './knowledge.service.js';
   imports: [DatabaseModule],
   controllers: [ConfigurationController],
   providers: [BusinessRuleService, KnowledgeService, AgentSettingsService],
+  exports: [BusinessRuleService, KnowledgeService, AgentSettingsService],
 })
 export class ConfigurationModule {}
