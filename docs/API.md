@@ -31,6 +31,7 @@ The authenticated OIDC `sub` becomes the first owner. Tenant ID values from the 
 - [Dynamic Product Types](PRODUCT_TYPES_API.md)
 - [Products, Variants, Media & Content Mapping](PRODUCTS_API.md)
 - [Inventory Ledger, Balances & Reservations](INVENTORY_API.md)
+- [Draft Orders & Order Lifecycle](ORDERS_API.md)
 
 ## Required runtime configuration
 

@@ -64,6 +64,20 @@
       "when": 1790085937207,
       "tag": "0008_inventory-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790089121094,
+      "tag": "0009_lyrical_norrin_radd",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790089177717,
+      "tag": "0010_orders-rls",
+      "breakpoints": true
     }
   ]
 }
