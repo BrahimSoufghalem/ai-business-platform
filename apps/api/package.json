@@ -10,7 +10,7 @@
     "lint": "eslint src test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:integration": "vitest run test/customer-conversation.integration.spec.ts"
+    "test:integration": "vitest run test/*.integration.spec.ts"
   },
   "dependencies": {
     "@ai-business/domain": "workspace:*",
@@ -22,6 +22,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "@ai-business/auth": "workspace:*",
+    "@ai-business/ai-gateway": "workspace:*",
     "@ai-business/db": "workspace:*",
     "zod": "^4.1.5",
     "@ai-business/storage": "workspace:*"

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
+import { ConfigurationModule } from './configuration/configuration.module.js';
 import { ConversationModule } from './conversations/conversation.module.js';
 import { CustomerModule } from './customers/customer.module.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -23,6 +24,7 @@ import { TenantModule } from './tenants/tenant.module.js';
     OrderModule,
     CustomerModule,
     ConversationModule,
+    ConfigurationModule,
   ],
   controllers: [HealthController],
 })

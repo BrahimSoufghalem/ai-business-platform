@@ -11,6 +11,8 @@ export type Permission =
   | 'orders:write'
   | 'conversations:read'
   | 'conversations:manage'
+  | 'configuration:read'
+  | 'configuration:manage'
   | 'audit:read';
 
 const allPermissions: readonly Permission[] = [
@@ -24,6 +26,8 @@ const allPermissions: readonly Permission[] = [
   'orders:write',
   'conversations:read',
   'conversations:manage',
+  'configuration:read',
+  'configuration:manage',
   'audit:read',
 ];
 
@@ -39,6 +43,8 @@ const permissionsByRole: Record<MembershipRole, ReadonlySet<Permission>> = {
     'orders:write',
     'conversations:read',
     'conversations:manage',
+    'configuration:read',
+    'configuration:manage',
     'audit:read',
   ]),
   agent: new Set([
@@ -48,6 +54,7 @@ const permissionsByRole: Record<MembershipRole, ReadonlySet<Permission>> = {
     'orders:write',
     'conversations:read',
     'conversations:manage',
+    'configuration:read',
   ]),
 };
 

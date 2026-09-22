@@ -33,6 +33,7 @@ The authenticated OIDC `sub` becomes the first owner. Tenant ID values from the 
 - [Inventory Ledger, Balances & Reservations](INVENTORY_API.md)
 - [Draft Orders & Order Lifecycle](ORDERS_API.md)
 - [Customers, Conversations & Internal Inbox](CUSTOMERS_CONVERSATIONS_API.md)
+- [Business Rules, Knowledge Base & Agent Settings](RULES_KNOWLEDGE_API.md)
 
 ## Required runtime configuration
 
