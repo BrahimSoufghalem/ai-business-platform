@@ -59,6 +59,7 @@ export interface DraftOrderItemView {
 
 export interface DraftOrderView {
   readonly id: string;
+  readonly customerId: string | null;
   readonly status: DraftOrderStatus;
   readonly version: number;
   readonly customerName: string | null;
@@ -109,6 +110,7 @@ export interface OrderTransitionView {
 export interface OrderView {
   readonly id: string;
   readonly sourceDraftOrderId: string;
+  readonly customerId: string | null;
   readonly number: string;
   readonly status: OrderStatus;
   readonly version: number;
@@ -179,6 +181,64 @@ function newOrderNumber(orderId: string): string {
 @Injectable()
 export class OrderService {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+
+  private async loadCustomerDefaults(
+    transaction: TenantTransaction,
+    tenantId: string,
+    customerId: string,
+  ): Promise<{
+    readonly name: string;
+    readonly phone: string | null;
+    readonly email: string | null;
+    readonly shippingAddress: Record<string, unknown> | null;
+  }> {
+    const [customer] = await transaction<{ name: string }[]>`
+      select name
+      from customers
+      where tenant_id = ${tenantId} and id = ${customerId} and status = 'active'
+      limit 1
+    `;
+    if (!customer) throw new NotFoundException('Active customer not found.');
+    const [phone] = await transaction<{ value: string }[]>`
+      select normalized_value as value
+      from customer_contacts
+      where tenant_id = ${tenantId} and customer_id = ${customerId}
+        and type in ('phone', 'whatsapp')
+      order by is_primary desc, case type when 'phone' then 0 else 1 end, created_at, id
+      limit 1
+    `;
+    const [email] = await transaction<{ value: string }[]>`
+      select normalized_value as value
+      from customer_contacts
+      where tenant_id = ${tenantId} and customer_id = ${customerId} and type = 'email'
+      order by is_primary desc, created_at, id
+      limit 1
+    `;
+    const [address] = await transaction<
+      {
+        line1: string;
+        line2: string | null;
+        city: string;
+        region: string | null;
+        postalCode: string | null;
+        countryCode: string;
+      }[]
+    >`
+      select
+        line1, line2, city, region, postal_code as "postalCode",
+        country_code as "countryCode"
+      from customer_addresses
+      where tenant_id = ${tenantId} and customer_id = ${customerId}
+      order by is_default desc, created_at, id
+      limit 1
+    `;
+    return {
+      name: customer.name,
+      phone: phone?.value ?? null,
+      email: email?.value ?? null,
+      shippingAddress: address ?? null,
+    };
+  }
 
   private translateError(error: unknown): never {
     if (
@@ -351,6 +411,7 @@ export class OrderService {
     const [row] = await transaction<
       {
         id: string;
+        customerId: string | null;
         status: DraftOrderStatus;
         version: number;
         customerName: string | null;
@@ -372,7 +433,8 @@ export class OrderService {
       }[]
     >`
       select
-        id::text, status::text, version, customer_name as "customerName",
+        id::text, customer_id::text as "customerId", status::text, version,
+        customer_name as "customerName",
         customer_phone as "customerPhone", customer_email as "customerEmail",
         shipping_address as "shippingAddress", notes, custom_fields as "customFields",
         currency, subtotal::text, discount_amount::text as "discountAmount",
@@ -416,6 +478,7 @@ export class OrderService {
       {
         id: string;
         sourceDraftOrderId: string;
+        customerId: string | null;
         number: string;
         status: OrderStatus;
         version: number;
@@ -441,7 +504,8 @@ export class OrderService {
     >`
       select
         id::text, source_draft_order_id::text as "sourceDraftOrderId",
-        number, status::text, version, customer_name as "customerName",
+        customer_id::text as "customerId", number, status::text, version,
+        customer_name as "customerName",
         customer_phone as "customerPhone", customer_email as "customerEmail",
         shipping_address as "shippingAddress", notes, custom_fields as "customFields",
         currency, subtotal::text, discount_amount::text as "discountAmount",
@@ -503,16 +567,27 @@ export class OrderService {
     const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
     return withTenantTransaction(this.database.client, context, async (transaction) => {
       await authorizeTenantPermission(transaction, context.tenantId, 'orders:write');
+      const customer = input.customerId
+        ? await this.loadCustomerDefaults(transaction, context.tenantId, input.customerId)
+        : null;
       const quote = await this.quoteItems(transaction, context.tenantId, input.items);
       const [created] = await transaction<{ id: string }[]>`
         insert into draft_orders (
-          tenant_id, customer_name, customer_phone, customer_email,
+          tenant_id, customer_id, customer_name, customer_phone, customer_email,
           shipping_address, notes, custom_fields, currency, subtotal,
           discount_amount, shipping_amount, total
         ) values (
-          ${context.tenantId}, ${input.customerName ?? null},
-          ${input.customerPhone ?? null}, ${input.customerEmail ?? null},
-          ${input.shippingAddress ? transaction.json(jsonInput(input.shippingAddress)) : null},
+          ${context.tenantId}, ${input.customerId ?? null},
+          ${input.customerName ?? customer?.name ?? null},
+          ${input.customerPhone ?? customer?.phone ?? null},
+          ${input.customerEmail ?? customer?.email ?? null},
+          ${
+            input.shippingAddress
+              ? transaction.json(jsonInput(input.shippingAddress))
+              : customer?.shippingAddress
+                ? transaction.json(jsonInput(customer.shippingAddress))
+                : null
+          },
           ${input.notes ?? null}, ${transaction.json(jsonInput(input.customFields))},
           ${quote.currency}, ${quote.subtotal}, ${quote.discountAmount},
           ${quote.shippingAmount}, ${quote.total}
@@ -566,6 +641,13 @@ export class OrderService {
       }
       const current = await this.loadDraft(transaction, context.tenantId, draftOrderId);
       if (!current) throw new NotFoundException('Draft order not found.');
+      const nextCustomerId = input.customerId === undefined ? current.customerId : input.customerId;
+      const customerChanged =
+        input.customerId !== undefined && input.customerId !== current.customerId;
+      const customer =
+        customerChanged && nextCustomerId
+          ? await this.loadCustomerDefaults(transaction, context.tenantId, nextCustomerId)
+          : null;
       const quote = input.items
         ? await this.quoteItems(transaction, context.tenantId, input.items)
         : {
@@ -577,15 +659,32 @@ export class OrderService {
             total: current.total,
           };
       const shippingAddress =
-        input.shippingAddress === undefined ? current.shippingAddress : input.shippingAddress;
+        input.shippingAddress === undefined
+          ? customerChanged
+            ? (customer?.shippingAddress ?? current.shippingAddress)
+            : current.shippingAddress
+          : input.shippingAddress;
       const customFields = input.customFields ?? current.customFields;
       await transaction`
         update draft_orders
         set
           status = 'draft', version = version + 1,
-          customer_name = ${input.customerName === undefined ? current.customerName : input.customerName},
-          customer_phone = ${input.customerPhone === undefined ? current.customerPhone : input.customerPhone},
-          customer_email = ${input.customerEmail === undefined ? current.customerEmail : input.customerEmail},
+          customer_id = ${nextCustomerId},
+          customer_name = ${
+            input.customerName === undefined
+              ? (customer?.name ?? current.customerName)
+              : input.customerName
+          },
+          customer_phone = ${
+            input.customerPhone === undefined
+              ? (customer?.phone ?? current.customerPhone)
+              : input.customerPhone
+          },
+          customer_email = ${
+            input.customerEmail === undefined
+              ? (customer?.email ?? current.customerEmail)
+              : input.customerEmail
+          },
           shipping_address = ${
             shippingAddress ? transaction.json(jsonInput(shippingAddress)) : null
           },

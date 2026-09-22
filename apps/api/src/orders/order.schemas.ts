@@ -33,6 +33,7 @@ const draftItemSchema = z.object({
 export const orderEntityIdSchema = uuidSchema;
 
 export const createDraftOrderSchema = z.object({
+  customerId: uuidSchema.nullable().optional(),
   customerName: z.string().trim().min(2).max(160).nullable().optional(),
   customerPhone: customerPhoneSchema.nullable().optional(),
   customerEmail: z.string().trim().email().max(254).nullable().optional(),
@@ -45,6 +46,7 @@ export const createDraftOrderSchema = z.object({
 export const updateDraftOrderSchema = z
   .object({
     expectedVersion: z.number().int().positive(),
+    customerId: uuidSchema.nullable().optional(),
     customerName: z.string().trim().min(2).max(160).nullable().optional(),
     customerPhone: customerPhoneSchema.nullable().optional(),
     customerEmail: z.string().trim().email().max(254).nullable().optional(),
@@ -56,6 +58,7 @@ export const updateDraftOrderSchema = z
   .refine(
     (value) =>
       value.customerName !== undefined ||
+      value.customerId !== undefined ||
       value.customerPhone !== undefined ||
       value.customerEmail !== undefined ||
       value.shippingAddress !== undefined ||

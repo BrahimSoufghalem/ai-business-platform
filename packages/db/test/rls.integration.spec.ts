@@ -32,6 +32,8 @@ const orderA = '88888888-8888-4888-8888-888888888888';
 const draftOrderB = '99999999-9999-4999-8999-999999999999';
 const orderB = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const orderC = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const customerA = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+const conversationA = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
 const provisioningUser = 'identity-user-provisioning-test';
@@ -108,7 +110,9 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
            products, product_variants, product_media, content_product_links,
            product_revisions, inventory_locations, inventory_balances,
            stock_reservations, draft_orders, draft_order_items,
-           orders, order_items, order_commands, order_transitions
+           orders, order_items, order_commands, order_transitions,
+           customers, customer_contacts, customer_addresses, customer_notes,
+           conversations, messages, conversation_transitions
         TO ai_business_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE
         ON inventory_movements
@@ -119,6 +123,8 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       GRANT EXECUTE ON FUNCTION app_list_current_identity_memberships()
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_membership_role(uuid)
+        TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_current_membership_user_id(uuid)
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_provision_tenant(text, text, text, text)
         TO ai_business_runtime;
@@ -172,15 +178,44 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       values (${inventoryLocationA}, ${tenantA}, 'MAIN', 'Main warehouse', true)
       on conflict (id) do update set name = excluded.name
     `;
+    await admin`
+      insert into customers (id, tenant_id, name, metadata)
+      values (${customerA}, ${tenantA}, 'Customer One', '{"source":"integration"}'::jsonb)
+      on conflict (id) do update set name = excluded.name, status = 'active'
+    `;
+    await admin`
+      insert into customer_contacts (
+        tenant_id, customer_id, type, value, normalized_value, is_primary
+      ) values (
+        ${tenantA}, ${customerA}, 'phone', '0555 00 00 01', '+213555000001', true
+      )
+      on conflict (tenant_id, normalized_value)
+      do update set customer_id = excluded.customer_id, is_primary = true
+    `;
+    await admin`
+      insert into customer_addresses (
+        tenant_id, customer_id, label, line1, city, country_code, is_default
+      ) values (
+        ${tenantA}, ${customerA}, 'Home', '10 Main Street', 'Algiers', 'DZ', true
+      )
+      on conflict do nothing
+    `;
   });
 
   afterAll(async () => {
+    await admin`delete from conversation_transitions where tenant_id = ${tenantA}`;
+    await admin`delete from messages where tenant_id = ${tenantA}`;
+    await admin`delete from conversations where tenant_id = ${tenantA}`;
     await admin`delete from order_commands where tenant_id = ${tenantA}`;
     await admin`delete from order_transitions where tenant_id = ${tenantA}`;
     await admin`delete from order_items where tenant_id = ${tenantA}`;
     await admin`delete from orders where tenant_id = ${tenantA}`;
     await admin`delete from draft_order_items where tenant_id = ${tenantA}`;
     await admin`delete from draft_orders where tenant_id = ${tenantA}`;
+    await admin`delete from customer_notes where tenant_id = ${tenantA}`;
+    await admin`delete from customer_addresses where tenant_id = ${tenantA}`;
+    await admin`delete from customer_contacts where tenant_id = ${tenantA}`;
+    await admin`delete from customers where tenant_id = ${tenantA}`;
     await admin`delete from inventory_movements where tenant_id = ${tenantA}`;
     await admin`delete from stock_reservations where tenant_id = ${tenantA}`;
     await admin`delete from inventory_balances where tenant_id = ${tenantA}`;
@@ -685,11 +720,11 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
     await withRuntimeTenant(context(tenantA, userA), async (tx) => {
       await tx`
         insert into draft_orders (
-          id, tenant_id, status, version, customer_name, customer_phone,
+          id, tenant_id, customer_id, status, version, customer_name, customer_phone,
           customer_email, shipping_address, currency, subtotal,
           discount_amount, shipping_amount, total, submitted_at
         ) values (
-          ${draftOrderA}, ${tenantA}, 'awaiting_confirmation', 2,
+          ${draftOrderA}, ${tenantA}, ${customerA}, 'awaiting_confirmation', 2,
           'Customer One', '+213555000001', 'customer@example.test',
           '{"line1":"10 Main Street","city":"Algiers","countryCode":"DZ"}'::jsonb,
           'DZD', 200000, 0, 0, 200000, now()
@@ -936,11 +971,11 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
     await withRuntimeTenant(context(tenantA, userA), async (tx) => {
       await tx`
         insert into draft_orders (
-          id, tenant_id, status, version, customer_name, customer_phone,
+          id, tenant_id, customer_id, status, version, customer_name, customer_phone,
           shipping_address, currency, subtotal, discount_amount,
           shipping_amount, total, submitted_at
         ) values (
-          ${draftOrderB}, ${tenantA}, 'awaiting_confirmation', 2,
+          ${draftOrderB}, ${tenantA}, ${customerA}, 'awaiting_confirmation', 2,
           'Customer Two', '+213555000002',
           '{"line1":"20 Second Street","city":"Oran","countryCode":"DZ"}'::jsonb,
           'DZD', 120000, 0, 0, 120000, now()
@@ -1007,6 +1042,139 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
         `,
     );
     expect(afterCancellation).toEqual({ onHand: 3, reserved: 0, releaseCount: 1 });
+  });
+
+  it('deduplicates customer contacts and isolates an idempotent conversation inbox', async () => {
+    await admin`delete from conversation_transitions where tenant_id = ${tenantA}`;
+    await admin`delete from messages where tenant_id = ${tenantA}`;
+    await admin`delete from conversations where tenant_id = ${tenantA}`;
+
+    await expect(
+      withRuntimeTenant(context(tenantA, userA), async (tx) => {
+        const [duplicate] = await tx<{ id: string }[]>`
+          insert into customers (tenant_id, name)
+          values (${tenantA}, 'Duplicate Contact')
+          returning id::text
+        `;
+        if (!duplicate) throw new Error('Duplicate fixture customer was not created.');
+        await tx`
+          insert into customer_contacts (
+            tenant_id, customer_id, type, value, normalized_value, is_primary
+          ) values (
+            ${tenantA}, ${duplicate.id}, 'phone', '+213 555 000 001',
+            '+213555000001', true
+          )
+        `;
+      }),
+    ).rejects.toThrow();
+
+    await withRuntimeTenant(context(tenantA, userA), async (tx) => {
+      await tx`
+        insert into conversations (
+          id, tenant_id, customer_id, channel, external_thread_id, status,
+          product_id, draft_order_id, order_id
+        ) values (
+          ${conversationA}, ${tenantA}, ${customerA}, 'internal',
+          'internal-thread-1', 'needs_human', ${productA}, ${draftOrderB}, ${orderC}
+        )
+      `;
+      await tx`
+        insert into conversation_transitions (
+          tenant_id, conversation_id, from_status, to_status, actor_id
+        ) values (
+          ${tenantA}, ${conversationA}, null, 'needs_human', ${userA}
+        )
+      `;
+      await tx`
+        insert into messages (
+          tenant_id, conversation_id, direction, sender_type, external_id,
+          fingerprint, content
+        ) values (
+          ${tenantA}, ${conversationA}, 'inbound', 'customer',
+          'external-message-1', 'fingerprint-1', 'Do you have this product?'
+        )
+      `;
+      await tx`
+        insert into messages (
+          tenant_id, conversation_id, direction, sender_type, external_id,
+          fingerprint, content
+        ) values (
+          ${tenantA}, ${conversationA}, 'inbound', 'customer',
+          'external-message-1', 'fingerprint-1', 'Do you have this product?'
+        )
+        on conflict (tenant_id, conversation_id, external_id) do nothing
+      `;
+      await tx`
+        update conversations
+        set
+          status = 'human',
+          assigned_to_user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          version = version + 1
+        where tenant_id = ${tenantA} and id = ${conversationA}
+      `;
+      await tx`
+        insert into conversation_transitions (
+          tenant_id, conversation_id, from_status, to_status, actor_id
+        ) values (
+          ${tenantA}, ${conversationA}, 'needs_human', 'human', ${userA}
+        )
+      `;
+    });
+
+    const [state] = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<
+          {
+            status: string;
+            assignedToUserId: string;
+            messageCount: number;
+            orderCount: number;
+          }[]
+        >`
+          select
+            conversation.status::text,
+            conversation.assigned_to_user_id::text as "assignedToUserId",
+            (
+              select count(*)::int from messages
+              where tenant_id = ${tenantA} and conversation_id = conversation.id
+            ) as "messageCount",
+            (
+              select count(*)::int from orders
+              where tenant_id = ${tenantA} and customer_id = ${customerA}
+            ) as "orderCount"
+          from conversations as conversation
+          where conversation.tenant_id = ${tenantA} and conversation.id = ${conversationA}
+        `,
+    );
+    expect(state).toEqual({
+      status: 'human',
+      assignedToUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      messageCount: 1,
+      orderCount: 2,
+    });
+
+    const hiddenCustomers = await withRuntimeTenant(
+      context(tenantB, userB),
+      (tx) => tx<{ id: string }[]>`select id::text from customers`,
+    );
+    const hiddenConversations = await withRuntimeTenant(
+      context(tenantB, userB),
+      (tx) => tx<{ id: string }[]>`select id::text from conversations`,
+    );
+    expect(hiddenCustomers).toEqual([]);
+    expect(hiddenConversations).toEqual([]);
+
+    const changedMessages = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<{ id: string }[]>`
+          update messages set content = 'tampered'
+          where tenant_id = ${tenantA} and conversation_id = ${conversationA}
+          returning id::text
+        `,
+    );
+    expect(changedMessages).toEqual([]);
   });
 
   it('rejects a cross-tenant audit write even when the candidate tenant is supplied', async () => {

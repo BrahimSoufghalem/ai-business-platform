@@ -16,6 +16,8 @@
 
 A draft can be cancelled before confirmation. Confirmed drafts are managed through their Order.
 
+`customerId` may be supplied when a draft is created or updated. The service verifies that the customer is active in the same tenant and fills missing name, contact, and default-address fields from that profile. The confirmed order keeps `customerId` for customer history while preserving immutable name, contact, and address snapshots.
+
 ### Endpoints
 
 - `GET /api/tenants/:tenantId/draft-orders`

@@ -60,6 +60,33 @@ export const orderStatus = pgEnum('order_status', [
   'cancelled',
 ]);
 export const orderCommandType = pgEnum('order_command_type', ['confirm', 'transition', 'cancel']);
+export const customerStatus = pgEnum('customer_status', ['active', 'archived']);
+export const customerContactType = pgEnum('customer_contact_type', [
+  'phone',
+  'email',
+  'whatsapp',
+  'instagram',
+]);
+export const conversationChannel = pgEnum('conversation_channel', [
+  'internal',
+  'instagram',
+  'whatsapp',
+  'web',
+  'email',
+]);
+export const conversationStatus = pgEnum('conversation_status', [
+  'bot',
+  'needs_human',
+  'human',
+  'closed',
+]);
+export const messageDirection = pgEnum('message_direction', ['inbound', 'outbound', 'internal']);
+export const messageSenderType = pgEnum('message_sender_type', [
+  'customer',
+  'agent',
+  'bot',
+  'system',
+]);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -450,6 +477,116 @@ export const inventoryMovements = pgTable(
   ],
 );
 
+export const customers = pgTable(
+  'customers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    status: customerStatus('status').notNull().default('active'),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('customers_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('customers_tenant_name_idx').on(table.tenantId, table.name),
+    check('customers_name_not_blank', sql`length(trim(${table.name})) > 0`),
+    check('customers_version_positive', sql`${table.version} > 0`),
+  ],
+);
+
+export const customerContacts = pgTable(
+  'customer_contacts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    customerId: uuid('customer_id').notNull(),
+    type: customerContactType('type').notNull(),
+    value: text('value').notNull(),
+    normalizedValue: text('normalized_value').notNull(),
+    label: text('label'),
+    isPrimary: boolean('is_primary').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.customerId],
+      foreignColumns: [customers.tenantId, customers.id],
+      name: 'customer_contacts_tenant_customer_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('customer_contacts_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('customer_contacts_tenant_normalized_uq').on(table.tenantId, table.normalizedValue),
+    index('customer_contacts_tenant_customer_idx').on(table.tenantId, table.customerId),
+    check('customer_contacts_value_not_blank', sql`length(trim(${table.value})) > 0`),
+    check(
+      'customer_contacts_normalized_not_blank',
+      sql`length(trim(${table.normalizedValue})) > 0`,
+    ),
+  ],
+);
+
+export const customerAddresses = pgTable(
+  'customer_addresses',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    customerId: uuid('customer_id').notNull(),
+    label: text('label'),
+    recipientName: text('recipient_name'),
+    line1: text('line1').notNull(),
+    line2: text('line2'),
+    city: text('city').notNull(),
+    region: text('region'),
+    postalCode: text('postal_code'),
+    countryCode: text('country_code').notNull().default('DZ'),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.customerId],
+      foreignColumns: [customers.tenantId, customers.id],
+      name: 'customer_addresses_tenant_customer_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('customer_addresses_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('customer_addresses_tenant_customer_idx').on(table.tenantId, table.customerId),
+    check('customer_addresses_line1_not_blank', sql`length(trim(${table.line1})) > 0`),
+    check('customer_addresses_city_not_blank', sql`length(trim(${table.city})) > 0`),
+    check('customer_addresses_country_code_length', sql`length(trim(${table.countryCode})) = 2`),
+  ],
+);
+
+export const customerNotes = pgTable(
+  'customer_notes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    customerId: uuid('customer_id').notNull(),
+    body: text('body').notNull(),
+    authorId: text('author_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.customerId],
+      foreignColumns: [customers.tenantId, customers.id],
+      name: 'customer_notes_tenant_customer_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('customer_notes_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('customer_notes_tenant_customer_created_idx').on(
+      table.tenantId,
+      table.customerId,
+      table.createdAt,
+    ),
+    check('customer_notes_body_not_blank', sql`length(trim(${table.body})) > 0`),
+  ],
+);
+
 export const draftOrders = pgTable(
   'draft_orders',
   {
@@ -457,6 +594,7 @@ export const draftOrders = pgTable(
     tenantId: uuid('tenant_id')
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
+    customerId: uuid('customer_id'),
     status: draftOrderStatus('status').notNull().default('draft'),
     version: integer('version').notNull().default(1),
     customerName: text('customer_name'),
@@ -477,8 +615,18 @@ export const draftOrders = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.customerId],
+      foreignColumns: [customers.tenantId, customers.id],
+      name: 'draft_orders_tenant_customer_fk',
+    }).onDelete('restrict'),
     uniqueIndex('draft_orders_tenant_id_id_uq').on(table.tenantId, table.id),
     index('draft_orders_tenant_status_idx').on(table.tenantId, table.status),
+    index('draft_orders_tenant_customer_created_idx').on(
+      table.tenantId,
+      table.customerId,
+      table.createdAt,
+    ),
     check('draft_orders_version_positive', sql`${table.version} > 0`),
     check('draft_orders_subtotal_nonnegative', sql`${table.subtotal} >= 0`),
     check('draft_orders_discount_nonnegative', sql`${table.discountAmount} >= 0`),
@@ -558,6 +706,7 @@ export const orders = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: 'restrict' }),
     sourceDraftOrderId: uuid('source_draft_order_id').notNull(),
+    customerId: uuid('customer_id'),
     number: text('number').notNull(),
     status: orderStatus('status').notNull().default('new'),
     version: integer('version').notNull().default(1),
@@ -586,10 +735,20 @@ export const orders = pgTable(
       foreignColumns: [draftOrders.tenantId, draftOrders.id],
       name: 'orders_tenant_source_draft_fk',
     }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.customerId],
+      foreignColumns: [customers.tenantId, customers.id],
+      name: 'orders_tenant_customer_fk',
+    }).onDelete('restrict'),
     uniqueIndex('orders_tenant_id_id_uq').on(table.tenantId, table.id),
     uniqueIndex('orders_tenant_number_uq').on(table.tenantId, table.number),
     uniqueIndex('orders_tenant_source_draft_uq').on(table.tenantId, table.sourceDraftOrderId),
     index('orders_tenant_status_created_idx').on(table.tenantId, table.status, table.createdAt),
+    index('orders_tenant_customer_created_idx').on(
+      table.tenantId,
+      table.customerId,
+      table.createdAt,
+    ),
     check('orders_version_positive', sql`${table.version} > 0`),
     check('orders_subtotal_nonnegative', sql`${table.subtotal} >= 0`),
     check('orders_discount_nonnegative', sql`${table.discountAmount} >= 0`),
@@ -716,6 +875,136 @@ export const orderTransitions = pgTable(
     index('order_transitions_tenant_order_created_idx').on(
       table.tenantId,
       table.orderId,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const conversations = pgTable(
+  'conversations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    customerId: uuid('customer_id').notNull(),
+    channel: conversationChannel('channel').notNull(),
+    externalThreadId: text('external_thread_id'),
+    status: conversationStatus('status').notNull().default('bot'),
+    assignedToUserId: uuid('assigned_to_user_id'),
+    subject: text('subject'),
+    productId: uuid('product_id'),
+    draftOrderId: uuid('draft_order_id'),
+    orderId: uuid('order_id'),
+    version: integer('version').notNull().default(1),
+    lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.customerId],
+      foreignColumns: [customers.tenantId, customers.id],
+      name: 'conversations_tenant_customer_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.assignedToUserId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+      name: 'conversations_tenant_assignee_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.id],
+      name: 'conversations_tenant_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.draftOrderId],
+      foreignColumns: [draftOrders.tenantId, draftOrders.id],
+      name: 'conversations_tenant_draft_order_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.orderId],
+      foreignColumns: [orders.tenantId, orders.id],
+      name: 'conversations_tenant_order_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('conversations_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('conversations_tenant_channel_external_thread_uq').on(
+      table.tenantId,
+      table.channel,
+      table.externalThreadId,
+    ),
+    index('conversations_tenant_status_last_message_idx').on(
+      table.tenantId,
+      table.status,
+      table.lastMessageAt,
+    ),
+    index('conversations_tenant_customer_created_idx').on(
+      table.tenantId,
+      table.customerId,
+      table.createdAt,
+    ),
+    check('conversations_version_positive', sql`${table.version} > 0`),
+  ],
+);
+
+export const messages = pgTable(
+  'messages',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    direction: messageDirection('direction').notNull(),
+    senderType: messageSenderType('sender_type').notNull(),
+    senderId: text('sender_id'),
+    externalId: text('external_id'),
+    fingerprint: text('fingerprint').notNull(),
+    content: text('content').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+      name: 'messages_tenant_conversation_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('messages_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('messages_tenant_conversation_external_uq').on(
+      table.tenantId,
+      table.conversationId,
+      table.externalId,
+    ),
+    index('messages_tenant_conversation_created_idx').on(
+      table.tenantId,
+      table.conversationId,
+      table.createdAt,
+    ),
+    check('messages_fingerprint_not_blank', sql`length(trim(${table.fingerprint})) > 0`),
+    check('messages_content_not_blank', sql`length(trim(${table.content})) > 0`),
+  ],
+);
+
+export const conversationTransitions = pgTable(
+  'conversation_transitions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    fromStatus: conversationStatus('from_status'),
+    toStatus: conversationStatus('to_status').notNull(),
+    actorId: text('actor_id').notNull(),
+    reason: text('reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+      name: 'conversation_transitions_tenant_conversation_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('conversation_transitions_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('conversation_transitions_tenant_conversation_created_idx').on(
+      table.tenantId,
+      table.conversationId,
       table.createdAt,
     ),
   ],

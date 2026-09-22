@@ -4,3 +4,5 @@ export * from './catalog/product-schema.js';
 export * from './catalog/product-templates.js';
 export * from './catalog/product-catalog.js';
 export * from './orders/order-lifecycle.js';
+export * from './customers/customer-contact.js';
+export * from './conversations/conversation-lifecycle.js';

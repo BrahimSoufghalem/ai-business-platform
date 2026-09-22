@@ -9,6 +9,12 @@ async function bootstrap(): Promise<void> {
     new FastifyAdapter({ logger: false }),
   );
   app.setGlobalPrefix('api');
+  app.enableCors({
+    origin: process.env.WEB_ORIGIN?.split(',').map((origin) => origin.trim()) ?? [
+      'http://localhost:3000',
+    ],
+    credentials: false,
+  });
   app.enableShutdownHooks();
 
   const port = Number(process.env.PORT ?? 3001);
