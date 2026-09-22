@@ -1,8 +1,10 @@
 import {
+  bigint,
   boolean,
   foreignKey,
   index,
   integer,
+  numeric,
   jsonb,
   pgEnum,
   pgTable,
@@ -23,6 +25,9 @@ export const attributeDataType = pgEnum('attribute_data_type', [
   'select',
   'multi_select',
 ]);
+export const productStatus = pgEnum('product_status', ['draft', 'active', 'archived']);
+export const productVariantStatus = pgEnum('product_variant_status', ['active', 'archived']);
+export const productMediaStatus = pgEnum('product_media_status', ['pending', 'ready', 'failed']);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -113,6 +118,142 @@ export const attributeDefinitions = pgTable(
     }).onDelete('cascade'),
     uniqueIndex('attribute_definitions_product_type_key_uq').on(table.productTypeId, table.key),
     index('attribute_definitions_tenant_product_type_idx').on(table.tenantId, table.productTypeId),
+  ],
+);
+
+export const products = pgTable(
+  'products',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    productTypeId: uuid('product_type_id').notNull(),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    basePrice: numeric('base_price', { precision: 14, scale: 2 }).notNull(),
+    currency: text('currency').notNull().default('DZD'),
+    status: productStatus('status').notNull().default('draft'),
+    customAttributes: jsonb('custom_attributes')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    productTypeSchemaVersion: integer('product_type_schema_version').notNull(),
+    version: integer('version').notNull().default(1),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.productTypeId],
+      foreignColumns: [productTypes.tenantId, productTypes.id],
+      name: 'products_tenant_product_type_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('products_tenant_code_uq').on(table.tenantId, table.code),
+    uniqueIndex('products_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('products_tenant_status_idx').on(table.tenantId, table.status),
+    index('products_tenant_type_idx').on(table.tenantId, table.productTypeId),
+  ],
+);
+
+export const productVariants = pgTable(
+  'product_variants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    sku: text('sku').notNull(),
+    name: text('name'),
+    attributes: jsonb('attributes').$type<Record<string, unknown>>().notNull().default({}),
+    priceOverride: numeric('price_override', { precision: 14, scale: 2 }),
+    status: productVariantStatus('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.id],
+      name: 'product_variants_tenant_product_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('product_variants_tenant_sku_uq').on(table.tenantId, table.sku),
+    uniqueIndex('product_variants_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('product_variants_tenant_product_idx').on(table.tenantId, table.productId),
+  ],
+);
+
+export const productMedia = pgTable(
+  'product_media',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    objectKey: text('object_key').notNull(),
+    originalFilename: text('original_filename').notNull(),
+    contentType: text('content_type').notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    altText: text('alt_text'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    status: productMediaStatus('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.id],
+      name: 'product_media_tenant_product_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('product_media_tenant_object_key_uq').on(table.tenantId, table.objectKey),
+    index('product_media_tenant_product_idx').on(table.tenantId, table.productId),
+  ],
+);
+
+export const contentProductLinks = pgTable(
+  'content_product_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    channel: text('channel').notNull(),
+    externalContentId: text('external_content_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.id],
+      name: 'content_product_links_tenant_product_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('content_product_links_tenant_channel_external_uq').on(
+      table.tenantId,
+      table.channel,
+      table.externalContentId,
+    ),
+    index('content_product_links_tenant_product_idx').on(table.tenantId, table.productId),
+  ],
+);
+
+export const productRevisions = pgTable(
+  'product_revisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    productId: uuid('product_id').notNull(),
+    version: integer('version').notNull(),
+    snapshot: jsonb('snapshot').$type<Record<string, unknown>>().notNull(),
+    actorId: text('actor_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.id],
+      name: 'product_revisions_tenant_product_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('product_revisions_product_version_uq').on(table.productId, table.version),
+    index('product_revisions_tenant_product_idx').on(table.tenantId, table.productId),
   ],
 );
 
