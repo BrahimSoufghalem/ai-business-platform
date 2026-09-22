@@ -2,7 +2,7 @@
 
 منصة SaaS متعددة المتاجر تجمع إدارة المنتجات والمخزون والطلبات والعملاء مع وكيل AI لخدمة العملاء، مع إبقاء النظام وقواعد العمل مصدر الحقيقة الوحيد.
 
-> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون والطلبات وملفات العملاء وصندوق المحادثات، وأضيفت قواعد أعمال ومعرفة وإعدادات وكيل بإصدارات Draft/Published.
+> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون والطلبات والعملاء والمحادثات والقواعد والمعرفة، وأضيف AI Gateway مستقل مع Routing وTools وBudgets وTelemetry منقحة.
 
 ## مبادئ المنتج
 
@@ -42,6 +42,7 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 | [Orders API](docs/ORDERS_API.md)                                 | Drafts والتأكيد والحالات وSnapshots التاريخية |
 | [Customers & Conversations](docs/CUSTOMERS_CONVERSATIONS_API.md) | الملفات الموحدة والرسائل والصندوق الداخلي     |
 | [Rules & Knowledge](docs/RULES_KNOWLEDGE_API.md)                 | قواعد السعر والمعرفة وإعدادات الوكيل بإصدارات |
+| [AI Gateway](docs/AI_GATEWAY.md)                                 | المزودون وRouting والأدوات والميزانية والتتبع |
 | [AI agent design](docs/AI_AGENT.md)                              | السياق الديناميكي، الأدوات، الحماية والتقييم  |
 | [Roadmap](docs/ROADMAP.md)                                       | خطة تنفيذ MVP على مراحل ومسار حرج             |
 | [Security & privacy](docs/SECURITY.md)                           | ضوابط العزل والوصول والأسرار والتدقيق         |
@@ -107,3 +108,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - [Customers & Conversations API](docs/CUSTOMERS_CONVERSATIONS_API.md): normalized contacts, tenant-safe deduplication, customer history, idempotent messages and the internal employee inbox.
 
 - [Business Rules, Knowledge & Agent Settings](docs/RULES_KNOWLEDGE_API.md): typed pricing decisions, immutable draft/published versions, untrusted knowledge grounding and safe runtime settings.
+
+- [AI Gateway](docs/AI_GATEWAY.md): provider-neutral adapters, task/cost/speed routing, validated tools and outputs, retries, circuit breaking, budgets, handoff and redacted run telemetry.

@@ -97,15 +97,15 @@ sequenceDiagram
 
 ## AI Gateway
 
-واجهة داخلية موحدة تغطي:
+تطبق حزمة `@ai-business/ai-gateway` واجهة داخلية موحدة تغطي:
 
-- Provider adapters.
-- Model routing حسب المهمة والميزانية.
-- Structured output validation.
-- Tool allow-list حسب السيناريو والدور.
-- Timeouts، retries، circuit breaker وfallback.
-- Usage/cost logging مع حذف أو إخفاء البيانات الحساسة.
-- Prompt/version registry لربط كل نتيجة بالنسخة المستخدمة.
+- `OpenAiCompatibleProvider` مع عقد `AiProvider` محايد و`SafeHandoffProvider` كـfallback.
+- Model routing حسب المهمة وIntent والتكلفة والسرعة والجودة.
+- Structured output validation محلي بعد JSON Schema الخاص بالمزود.
+- Tool registry وallow-list حسب Intent والـRun، مع Input/Output schemas.
+- Timeouts وretries وcircuit breaker وحدود Tool calls وbudgets.
+- `ai_runs` و`ai_tool_calls` append-only مع RLS وredaction دفاعي.
+- Prompt وRouting وModel versioning لربط كل نتيجة بالعقود المستخدمة.
 
 لا يجوز للـProvider SDK الظهور خارج حزمة `ai-gateway`.
 

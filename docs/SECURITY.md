@@ -38,6 +38,9 @@
 - Authorization داخل Tool نفسها، وليس عبر Prompt.
 - عدم تمرير بيانات متجر آخر أو بيانات شخصية غير لازمة.
 - حفظ traces منقحة مع retention محدود.
+- رفض Tool input قبل استدعاء Handler، والتحقق من Tool output قبل إعادته للنموذج.
+- عدم إعادة محاولة Provider بعد نجاح Command Tool؛ الانتقال إلى Handoff لمنع تكرار الأثر.
+- مفاتيح المزود تبقى داخل Adapter وتأتي من Secret Manager؛ لا تدخل Prompt أو Telemetry.
 
 ### الطلبات والمخزون
 

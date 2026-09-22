@@ -100,6 +100,20 @@ export const priceDecisionOutcome = pgEnum('price_decision_outcome', [
   'handoff',
   'reject',
 ]);
+export const aiTask = pgEnum('ai_task', ['classify', 'compose', 'negotiate', 'summarize']);
+export const aiIntent = pgEnum('ai_intent', [
+  'faq',
+  'product_discovery',
+  'pricing',
+  'order_draft',
+  'order_confirmation',
+  'order_status',
+  'handoff',
+  'summary',
+]);
+export const aiRunOutcome = pgEnum('ai_run_outcome', ['completed', 'handoff']);
+export const aiToolKind = pgEnum('ai_tool_kind', ['read', 'command']);
+export const aiToolCallStatus = pgEnum('ai_tool_call_status', ['succeeded', 'rejected', 'failed']);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -1265,6 +1279,109 @@ export const pricingDecisions = pgTable(
     check(
       'pricing_decisions_decided_price_nonnegative',
       sql`${table.decidedPrice} is null or ${table.decidedPrice} >= 0`,
+    ),
+  ],
+);
+
+export const aiRuns = pgTable(
+  'ai_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    conversationId: uuid('conversation_id'),
+    task: aiTask('task').notNull(),
+    intent: aiIntent('intent').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    routingVersion: text('routing_version'),
+    provider: text('provider'),
+    model: text('model'),
+    modelVersion: text('model_version'),
+    outcome: aiRunOutcome('outcome').notNull(),
+    handoffReason: text('handoff_reason'),
+    latencyMs: integer('latency_ms').notNull(),
+    inputTokens: integer('input_tokens').notNull(),
+    outputTokens: integer('output_tokens').notNull(),
+    estimatedCostUsd: numeric('estimated_cost_usd', { precision: 14, scale: 6 }).notNull(),
+    attemptCount: integer('attempt_count').notNull(),
+    fallbackUsed: boolean('fallback_used').notNull().default(false),
+    safeInput: jsonb('safe_input').$type<unknown>().notNull(),
+    safeOutput: jsonb('safe_output').$type<unknown>().notNull(),
+    attempts: jsonb('attempts').$type<unknown[]>().notNull().default([]),
+    correlationId: text('correlation_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+      name: 'ai_runs_tenant_conversation_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('ai_runs_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('ai_runs_tenant_created_idx').on(table.tenantId, table.createdAt),
+    index('ai_runs_tenant_conversation_created_idx').on(
+      table.tenantId,
+      table.conversationId,
+      table.createdAt,
+    ),
+    check('ai_runs_latency_nonnegative', sql`${table.latencyMs} >= 0`),
+    check('ai_runs_input_tokens_nonnegative', sql`${table.inputTokens} >= 0`),
+    check('ai_runs_output_tokens_nonnegative', sql`${table.outputTokens} >= 0`),
+    check('ai_runs_cost_nonnegative', sql`${table.estimatedCostUsd} >= 0`),
+    check('ai_runs_attempt_count_nonnegative', sql`${table.attemptCount} >= 0`),
+    check('ai_runs_prompt_version_not_blank', sql`length(trim(${table.promptVersion})) > 0`),
+    check('ai_runs_correlation_id_not_blank', sql`length(trim(${table.correlationId})) > 0`),
+    check(
+      'ai_runs_outcome_shape',
+      sql`(
+        (${table.outcome} = 'completed'
+          and ${table.provider} is not null
+          and ${table.model} is not null
+          and ${table.modelVersion} is not null
+          and ${table.routingVersion} is not null
+          and ${table.handoffReason} is null)
+        or
+        (${table.outcome} = 'handoff' and ${table.handoffReason} is not null)
+      )`,
+    ),
+  ],
+);
+
+export const aiToolCalls = pgTable(
+  'ai_tool_calls',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    runId: uuid('run_id').notNull(),
+    providerCallId: text('provider_call_id').notNull(),
+    name: text('name').notNull(),
+    kind: aiToolKind('kind').notNull(),
+    status: aiToolCallStatus('status').notNull(),
+    latencyMs: integer('latency_ms').notNull(),
+    safeInput: jsonb('safe_input').$type<unknown>().notNull(),
+    safeOutput: jsonb('safe_output').$type<unknown>().notNull(),
+    errorCode: text('error_code'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.runId],
+      foreignColumns: [aiRuns.tenantId, aiRuns.id],
+      name: 'ai_tool_calls_tenant_run_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('ai_tool_calls_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('ai_tool_calls_tenant_run_created_idx').on(table.tenantId, table.runId, table.createdAt),
+    check('ai_tool_calls_name_not_blank', sql`length(trim(${table.name})) > 0`),
+    check('ai_tool_calls_provider_id_not_blank', sql`length(trim(${table.providerCallId})) > 0`),
+    check('ai_tool_calls_latency_nonnegative', sql`${table.latencyMs} >= 0`),
+    check(
+      'ai_tool_calls_status_shape',
+      sql`(
+        (${table.status} = 'succeeded' and ${table.errorCode} is null)
+        or
+        (${table.status} in ('rejected', 'failed') and ${table.errorCode} is not null)
+      )`,
     ),
   ],
 );

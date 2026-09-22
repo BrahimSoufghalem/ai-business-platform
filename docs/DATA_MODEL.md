@@ -44,8 +44,8 @@
 | knowledge_entries        | tenant_id, slug, kind, version                                                 | هوية FAQ/article/policy             |
 | knowledge_versions       | entry_id, version, status, title, question, content                            | محتوى immutable بإصدارات            |
 | agent_settings_versions  | tenant_id, version, status, language, tone, handoff_notes                      | إعدادات آمنة بلا System Prompt      |
-| ai_runs                  | tenant_id, conversation_id, model, prompt_version, usage, outcome              | مراقبة وتكلفة                       |
-| ai_tool_calls            | ai_run_id, tool, safe_input, result_status, latency                            | لا تحفظ أسرارًا                     |
+| ai_runs                  | tenant/conversation, provider/model versions, usage, cost, outcome, safe I/O   | Trace append-only وRLS              |
+| ai_tool_calls            | run_id, tool/kind/status, latency, safe_input, safe_output                     | مدخلات ومخرجات منقحة فقط            |
 | handoffs                 | conversation_id, reason, summary, assigned_to, resolved_at                     | مسار الموظف                         |
 | audit_events             | tenant_id, actor, action, entity, before/after metadata                        | Append-only                         |
 | outbox_events            | tenant_id, type, payload, published_at                                         | ضمان الأحداث                        |
@@ -78,6 +78,8 @@ erDiagram
   TENANT ||--o{ KNOWLEDGE_ENTRY : owns
   KNOWLEDGE_ENTRY ||--o{ KNOWLEDGE_VERSION : versions
   TENANT ||--o{ AGENT_SETTINGS_VERSION : configures
+  CONVERSATION ||--o{ AI_RUN : grounds
+  AI_RUN ||--o{ AI_TOOL_CALL : invokes
 ```
 
 ## مثال خصائص ديناميكية
@@ -109,6 +111,8 @@ erDiagram
 9. Draft لا يدخل في قرارات السعر أو بحث المعرفة أو إعدادات الوكيل التشغيلية.
 10. محتوى Knowledge وHandoff Notes بيانات غير موثوقة، وليس تعليمات نظام.
 11. Version content لا يعدل؛ كل تغيير ينشئ إصدارًا جديدًا ثم ينشر صراحة.
+12. AI Run يحفظ Prompt/Route/Model versions والزمن والاستخدام والتكلفة والنتيجة.
+13. `ai_runs` و`ai_tool_calls` append-only؛ الحقول الحرة تمر عبر redaction وحدود حجم قبل الحفظ.
 
 ## فهارس أولية
 
