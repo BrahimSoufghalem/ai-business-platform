@@ -7,6 +7,7 @@ const describeWithDatabase = databaseUrl ? describe : describe.skip;
 
 const tenantA = parseTenantId('11111111-1111-4111-8111-111111111111');
 const tenantB = parseTenantId('22222222-2222-4222-8222-222222222222');
+const productTypeA = '33333333-3333-4333-8333-333333333333';
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
 const provisioningUser = 'identity-user-provisioning-test';
@@ -79,7 +80,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
 
       GRANT USAGE ON SCHEMA public TO ai_business_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE
-        ON tenants, memberships, audit_events
+        ON tenants, memberships, audit_events, product_types, attribute_definitions
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_tenant_id() TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_identity_subject() TO ai_business_runtime;
@@ -114,6 +115,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   afterAll(async () => {
+    await admin`delete from product_types where id = ${productTypeA}`;
     if (provisionedTenantId) {
       await admin`delete from audit_events where tenant_id = ${provisionedTenantId}`;
       await admin`delete from tenants where id = ${provisionedTenantId}`;
@@ -198,6 +200,52 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
     );
 
     expect(rows).toEqual([{ tenantId: tenantA }]);
+  });
+
+  it('isolates dynamic product schemas and their attributes', async () => {
+    await withRuntimeTenant(context(tenantA, userA), async (tx) => {
+      await tx`
+        insert into product_types (id, tenant_id, name, slug)
+        values (${productTypeA}, ${tenantA}, 'Smartphones', 'smartphones')
+        on conflict (id) do update set name = excluded.name
+      `;
+      await tx`
+        delete from attribute_definitions
+        where tenant_id = ${tenantA} and product_type_id = ${productTypeA}
+      `;
+      await tx`
+        insert into attribute_definitions (
+          tenant_id, product_type_id, key, label, data_type,
+          required, searchable, variant_axis, options, position
+        ) values (
+          ${tenantA}, ${productTypeA}, 'storage', 'Storage', 'select',
+          true, true, true, '["128 GB", "256 GB"]'::jsonb, 0
+        )
+      `;
+    });
+
+    const visibleToTenantA = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<{ slug: string; attributeKey: string }[]>`
+          select product_type.slug, attribute_definition.key as "attributeKey"
+          from product_types as product_type
+          join attribute_definitions as attribute_definition
+            on attribute_definition.tenant_id = product_type.tenant_id
+           and attribute_definition.product_type_id = product_type.id
+          where product_type.id = ${productTypeA}
+        `,
+    );
+    expect(visibleToTenantA).toEqual([{ slug: 'smartphones', attributeKey: 'storage' }]);
+
+    const hiddenFromTenantB = await withRuntimeTenant(
+      context(tenantB, userB),
+      (tx) =>
+        tx<{ id: string }[]>`
+          select id::text from product_types where id = ${productTypeA}
+        `,
+    );
+    expect(hiddenFromTenantB).toEqual([]);
   });
 
   it('rejects a cross-tenant audit write even when the candidate tenant is supplied', async () => {

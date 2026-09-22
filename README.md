@@ -91,3 +91,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - GitHub CI applies migrations to a real PostgreSQL service and runs cross-tenant integration tests.
 
 - [API foundation](docs/API.md): protected tenant provisioning, membership listing, RLS reads and audit access.
+
+- [Dynamic Product Types API](docs/PRODUCT_TYPES_API.md): templates, custom schemas, optimistic versions, RBAC and RLS.

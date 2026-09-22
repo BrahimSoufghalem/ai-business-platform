@@ -22,6 +22,20 @@
       "when": 1790079443809,
       "tag": "0002_tenant-api",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790081230470,
+      "tag": "0003_product-types",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790081231504,
+      "tag": "0004_product-types-rls",
+      "breakpoints": true
     }
   ]
 }
