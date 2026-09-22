@@ -1,7 +1,6 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseTenantId, type TenantContext } from '@ai-business/domain';
-import { createDatabaseClient, withTenantTransaction } from '../src/client.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -23,21 +22,38 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   if (!databaseUrl) return;
 
   const admin = postgres(databaseUrl, { max: 1 });
-  const runtimeUrl = new URL(databaseUrl);
-  runtimeUrl.username = 'ai_business_runtime';
-  runtimeUrl.password = 'runtime_test_only';
-  const runtime = createDatabaseClient(runtimeUrl.toString());
+
+  async function withRuntimeTenant<T>(
+    tenantContext: TenantContext,
+    operation: (transaction: postgres.TransactionSql) => Promise<T>,
+  ): Promise<T> {
+    const result = await admin.begin(async (transaction) => {
+      // SET ROLE verifies policies as the restricted production role while the
+      // test keeps one CI database connection and avoids host-auth differences.
+      await transaction.unsafe('set local role ai_business_runtime');
+      await transaction`
+        select
+          set_config('app.tenant_id', ${tenantContext.tenantId}, true),
+          set_config('app.identity_subject', ${tenantContext.actor.id}, true),
+          set_config('app.correlation_id', ${tenantContext.correlationId}, true)
+      `;
+
+      return operation(transaction);
+    });
+
+    return result as T;
+  }
 
   beforeAll(async () => {
     await admin.unsafe(`
       DO $$
       BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'ai_business_runtime') THEN
-          CREATE ROLE ai_business_runtime LOGIN PASSWORD 'runtime_test_only'
-            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+          CREATE ROLE ai_business_runtime
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOLOGIN NOREPLICATION NOBYPASSRLS;
         ELSE
-          ALTER ROLE ai_business_runtime LOGIN PASSWORD 'runtime_test_only'
-            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+          ALTER ROLE ai_business_runtime
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOLOGIN NOREPLICATION NOBYPASSRLS;
         END IF;
       END
       $$;
@@ -73,13 +89,11 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   afterAll(async () => {
-    await runtime.end();
     await admin.end();
   });
 
   it('shows only the active tenant to an active member', async () => {
-    const rows = await withTenantTransaction(
-      runtime,
+    const rows = await withRuntimeTenant(
       context(tenantA, userA),
       (tx) => tx<{ id: string }[]>`select id::text from tenants order by id`,
     );
@@ -88,8 +102,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   it('denies a valid identity that is not a member of the requested tenant', async () => {
-    const rows = await withTenantTransaction(
-      runtime,
+    const rows = await withRuntimeTenant(
       context(tenantB, userA),
       (tx) => tx<{ id: string }[]>`select id::text from tenants`,
     );
@@ -98,8 +111,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   it('isolates memberships by both tenant and identity', async () => {
-    const rows = await withTenantTransaction(
-      runtime,
+    const rows = await withRuntimeTenant(
       context(tenantA, userA),
       (tx) =>
         tx<{ tenantId: string }[]>`
@@ -112,8 +124,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
 
   it('rejects a cross-tenant audit write even when the candidate tenant is supplied', async () => {
     await expect(
-      withTenantTransaction(
-        runtime,
+      withRuntimeTenant(
         context(tenantB, userA),
         (tx) =>
           tx`
