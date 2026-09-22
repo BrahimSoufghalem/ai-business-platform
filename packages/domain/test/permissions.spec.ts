@@ -14,4 +14,10 @@ describe('role permissions', () => {
   it('fails closed for a missing permission', () => {
     expect(() => requirePermission('manager', 'tenant:manage')).toThrow(PermissionDeniedError);
   });
+
+  it('lets agents read published configuration but only managers can publish it', () => {
+    expect(hasPermission('agent', 'configuration:read')).toBe(true);
+    expect(hasPermission('agent', 'configuration:manage')).toBe(false);
+    expect(hasPermission('manager', 'configuration:manage')).toBe(true);
+  });
 });

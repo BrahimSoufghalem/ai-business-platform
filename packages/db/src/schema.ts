@@ -87,6 +87,19 @@ export const messageSenderType = pgEnum('message_sender_type', [
   'bot',
   'system',
 ]);
+export const configurationVersionStatus = pgEnum('configuration_version_status', [
+  'draft',
+  'published',
+  'superseded',
+]);
+export const knowledgeEntryKind = pgEnum('knowledge_entry_kind', ['faq', 'article', 'policy']);
+export const agentTone = pgEnum('agent_tone', ['professional', 'friendly', 'concise', 'warm']);
+export const priceDecisionOutcome = pgEnum('price_decision_outcome', [
+  'accept',
+  'counter',
+  'handoff',
+  'reject',
+]);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -1006,6 +1019,252 @@ export const conversationTransitions = pgTable(
       table.tenantId,
       table.conversationId,
       table.createdAt,
+    ),
+  ],
+);
+
+export const businessRuleSets = pgTable(
+  'business_rule_sets',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('business_rule_sets_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('business_rule_sets_tenant_key_uq').on(table.tenantId, table.key),
+    index('business_rule_sets_tenant_updated_idx').on(table.tenantId, table.updatedAt),
+    check('business_rule_sets_key_not_blank', sql`length(trim(${table.key})) > 0`),
+    check('business_rule_sets_name_not_blank', sql`length(trim(${table.name})) > 0`),
+    check('business_rule_sets_version_positive', sql`${table.version} > 0`),
+  ],
+);
+
+export const businessRuleVersions = pgTable(
+  'business_rule_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    ruleSetId: uuid('rule_set_id').notNull(),
+    version: integer('version').notNull(),
+    status: configurationVersionStatus('status').notNull().default('draft'),
+    policy: jsonb('policy').$type<Record<string, unknown>>().notNull(),
+    changeNote: text('change_note'),
+    createdBy: text('created_by').notNull(),
+    publishedBy: text('published_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.ruleSetId],
+      foreignColumns: [businessRuleSets.tenantId, businessRuleSets.id],
+      name: 'business_rule_versions_tenant_set_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('business_rule_versions_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('business_rule_versions_tenant_set_id_uq').on(
+      table.tenantId,
+      table.ruleSetId,
+      table.id,
+    ),
+    uniqueIndex('business_rule_versions_tenant_set_version_uq').on(
+      table.tenantId,
+      table.ruleSetId,
+      table.version,
+    ),
+    uniqueIndex('business_rule_versions_one_draft_uq')
+      .on(table.tenantId, table.ruleSetId)
+      .where(sql`${table.status} = 'draft'`),
+    uniqueIndex('business_rule_versions_one_published_uq')
+      .on(table.tenantId, table.ruleSetId)
+      .where(sql`${table.status} = 'published'`),
+    index('business_rule_versions_tenant_set_status_idx').on(
+      table.tenantId,
+      table.ruleSetId,
+      table.status,
+      table.version,
+    ),
+    check('business_rule_versions_version_positive', sql`${table.version} > 0`),
+  ],
+);
+
+export const knowledgeEntries = pgTable(
+  'knowledge_entries',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    slug: text('slug').notNull(),
+    kind: knowledgeEntryKind('kind').notNull(),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('knowledge_entries_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('knowledge_entries_tenant_slug_uq').on(table.tenantId, table.slug),
+    index('knowledge_entries_tenant_kind_updated_idx').on(
+      table.tenantId,
+      table.kind,
+      table.updatedAt,
+    ),
+    check('knowledge_entries_slug_not_blank', sql`length(trim(${table.slug})) > 0`),
+    check('knowledge_entries_version_positive', sql`${table.version} > 0`),
+  ],
+);
+
+export const knowledgeVersions = pgTable(
+  'knowledge_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    entryId: uuid('entry_id').notNull(),
+    version: integer('version').notNull(),
+    status: configurationVersionStatus('status').notNull().default('draft'),
+    title: text('title').notNull(),
+    question: text('question'),
+    content: text('content').notNull(),
+    changeNote: text('change_note'),
+    createdBy: text('created_by').notNull(),
+    publishedBy: text('published_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.entryId],
+      foreignColumns: [knowledgeEntries.tenantId, knowledgeEntries.id],
+      name: 'knowledge_versions_tenant_entry_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('knowledge_versions_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('knowledge_versions_tenant_entry_version_uq').on(
+      table.tenantId,
+      table.entryId,
+      table.version,
+    ),
+    uniqueIndex('knowledge_versions_one_draft_uq')
+      .on(table.tenantId, table.entryId)
+      .where(sql`${table.status} = 'draft'`),
+    uniqueIndex('knowledge_versions_one_published_uq')
+      .on(table.tenantId, table.entryId)
+      .where(sql`${table.status} = 'published'`),
+    index('knowledge_versions_tenant_entry_status_idx').on(
+      table.tenantId,
+      table.entryId,
+      table.status,
+      table.version,
+    ),
+    check('knowledge_versions_version_positive', sql`${table.version} > 0`),
+    check('knowledge_versions_title_not_blank', sql`length(trim(${table.title})) > 0`),
+    check('knowledge_versions_content_not_blank', sql`length(trim(${table.content})) > 0`),
+  ],
+);
+
+export const agentSettingsVersions = pgTable(
+  'agent_settings_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    status: configurationVersionStatus('status').notNull().default('draft'),
+    language: text('language').notNull(),
+    tone: agentTone('tone').notNull(),
+    handoffNotes: text('handoff_notes').notNull().default(''),
+    changeNote: text('change_note'),
+    createdBy: text('created_by').notNull(),
+    publishedBy: text('published_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex('agent_settings_versions_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('agent_settings_versions_tenant_version_uq').on(table.tenantId, table.version),
+    uniqueIndex('agent_settings_versions_one_draft_uq')
+      .on(table.tenantId)
+      .where(sql`${table.status} = 'draft'`),
+    uniqueIndex('agent_settings_versions_one_published_uq')
+      .on(table.tenantId)
+      .where(sql`${table.status} = 'published'`),
+    index('agent_settings_versions_tenant_status_idx').on(
+      table.tenantId,
+      table.status,
+      table.version,
+    ),
+    check('agent_settings_versions_version_positive', sql`${table.version} > 0`),
+    check('agent_settings_versions_language_allowed', sql`${table.language} in ('ar', 'fr', 'en')`),
+    check(
+      'agent_settings_versions_handoff_notes_length',
+      sql`length(${table.handoffNotes}) <= 1000`,
+    ),
+  ],
+);
+
+export const pricingDecisions = pgTable(
+  'pricing_decisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    ruleSetId: uuid('rule_set_id').notNull(),
+    ruleVersionId: uuid('rule_version_id').notNull(),
+    ruleVersion: integer('rule_version').notNull(),
+    productId: uuid('product_id'),
+    conversationId: uuid('conversation_id'),
+    currency: text('currency').notNull(),
+    listPrice: numeric('list_price', { precision: 14, scale: 2 }).notNull(),
+    requestedPrice: numeric('requested_price', { precision: 14, scale: 2 }).notNull(),
+    decidedPrice: numeric('decided_price', { precision: 14, scale: 2 }),
+    outcome: priceDecisionOutcome('outcome').notNull(),
+    reason: text('reason').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.ruleSetId],
+      foreignColumns: [businessRuleSets.tenantId, businessRuleSets.id],
+      name: 'pricing_decisions_tenant_set_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.ruleSetId, table.ruleVersionId],
+      foreignColumns: [
+        businessRuleVersions.tenantId,
+        businessRuleVersions.ruleSetId,
+        businessRuleVersions.id,
+      ],
+      name: 'pricing_decisions_tenant_rule_version_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [products.tenantId, products.id],
+      name: 'pricing_decisions_tenant_product_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+      name: 'pricing_decisions_tenant_conversation_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('pricing_decisions_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('pricing_decisions_tenant_set_created_idx').on(
+      table.tenantId,
+      table.ruleSetId,
+      table.createdAt,
+    ),
+    check('pricing_decisions_rule_version_positive', sql`${table.ruleVersion} > 0`),
+    check('pricing_decisions_list_price_nonnegative', sql`${table.listPrice} >= 0`),
+    check('pricing_decisions_requested_price_nonnegative', sql`${table.requestedPrice} >= 0`),
+    check(
+      'pricing_decisions_decided_price_nonnegative',
+      sql`${table.decidedPrice} is null or ${table.decidedPrice} >= 0`,
     ),
   ],
 );

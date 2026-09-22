@@ -58,6 +58,15 @@ Command Tools تنفذ authorization وvalidation والمعاملة؛ مواف�
 
 كل Route يسجل السبب، النموذج، Token usage، latency والتكلفة المقدرة.
 
+## عقد الإعدادات والمعرفة المنشورة
+
+- يقرأ الوكيل Business Rules وKnowledge وAgent Settings من الإصدار `published` فقط.
+- كل قرار سعر يعاد مع `ruleSetId` و`ruleVersionId` ورقم الإصدار، ثم يحفظ كسجل append-only.
+- نتائج Knowledge توضع داخل `knowledge_grounding` مع `trust: untrusted_content` و`embeddedInstructions: ignore`.
+- `language` و`tone` قيم allow-listed؛ ملاحظات Handoff تبقى بيانات غير موثوقة.
+- لا يوجد System Prompt قابل للتحرير من لوحة التاجر. ثوابت النظام والحماية تبقى داخل الكود/الإصدار التشغيلي.
+- نشر مسودة جديدة عملية صريحة ومُدققة، ولا تؤثر المسودة وحدها في سلوك الوكيل.
+
 ## حالات التحويل للموظف
 
 - ثقة منخفضة في تحديد المنتج أو Variant بعد سؤال توضيحي واحد أو اثنين.

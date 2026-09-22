@@ -22,6 +22,9 @@ export default function HomePage() {
         <a className="primary-link" href="/inbox">
           فتح الصندوق الداخلي
         </a>
+        <a className="secondary-link" href="/settings/configuration">
+          مركز القواعد والمعرفة
+        </a>
       </section>
 
       <section className="grid" aria-label="أسس المنصة">

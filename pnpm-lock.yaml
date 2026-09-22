@@ -44,6 +44,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@ai-business/ai-gateway':
+        specifier: workspace:*
+        version: link:../../packages/ai-gateway
       '@ai-business/auth':
         specifier: workspace:*
         version: link:../../packages/auth

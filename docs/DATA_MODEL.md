@@ -38,8 +38,12 @@
 | order_items              | order_id, variant_id, reservation_id, product/price snapshots, quantity        | Snapshot تاريخي                     |
 | order_commands           | tenant_id, order_id, type, idempotency_key, fingerprint                        | سجل أوامر قابل لإعادة المحاولة      |
 | order_transitions        | tenant_id, order_id, from_status, to_status, actor                             | تاريخ انتقالات append-only          |
-| business_rules           | tenant_id, key, value, version, status                                         | قواعد Typed ومنشورة                 |
-| knowledge_entries        | tenant_id, title, content, status, version                                     | FAQ ومعرفة المتجر                   |
+| business_rule_sets       | tenant_id, key, name, description, version                                     | هوية قاعدة مع optimistic version    |
+| business_rule_versions   | rule_set_id, version, status, policy, change/publish metadata                  | سياسة Typed وimmutable              |
+| pricing_decisions        | rule/version reference, prices, outcome, correlation_id                        | قرار append-only بالإصدار الدقيق    |
+| knowledge_entries        | tenant_id, slug, kind, version                                                 | هوية FAQ/article/policy             |
+| knowledge_versions       | entry_id, version, status, title, question, content                            | محتوى immutable بإصدارات            |
+| agent_settings_versions  | tenant_id, version, status, language, tone, handoff_notes                      | إعدادات آمنة بلا System Prompt      |
 | ai_runs                  | tenant_id, conversation_id, model, prompt_version, usage, outcome              | مراقبة وتكلفة                       |
 | ai_tool_calls            | ai_run_id, tool, safe_input, result_status, latency                            | لا تحفظ أسرارًا                     |
 | handoffs                 | conversation_id, reason, summary, assigned_to, resolved_at                     | مسار الموظف                         |
@@ -68,6 +72,12 @@ erDiagram
   CUSTOMER ||--o{ ORDER : places
   CONVERSATION ||--o{ AI_RUN : produces
   AI_RUN ||--o{ AI_TOOL_CALL : invokes
+  TENANT ||--o{ BUSINESS_RULE_SET : configures
+  BUSINESS_RULE_SET ||--o{ BUSINESS_RULE_VERSION : versions
+  BUSINESS_RULE_VERSION ||--o{ PRICING_DECISION : grounds
+  TENANT ||--o{ KNOWLEDGE_ENTRY : owns
+  KNOWLEDGE_ENTRY ||--o{ KNOWLEDGE_VERSION : versions
+  TENANT ||--o{ AGENT_SETTINGS_VERSION : configures
 ```
 
 ## مثال خصائص ديناميكية
@@ -95,6 +105,10 @@ erDiagram
 5. AI لا يكتب في الجداول؛ يستدعي Application Commands مسجلة كـTools.
 6. كل relation بين كيانات تشغيلية تتحقق من تطابق `tenant_id`.
 7. Content ID لا يحدد منتجًا إلا داخل tenant + channel الصحيحين.
+8. قرار السعر لا ينشأ دون Rule Version منشور ويحفظ `rule_set_id` و`rule_version_id` و`version`.
+9. Draft لا يدخل في قرارات السعر أو بحث المعرفة أو إعدادات الوكيل التشغيلية.
+10. محتوى Knowledge وHandoff Notes بيانات غير موثوقة، وليس تعليمات نظام.
+11. Version content لا يعدل؛ كل تغيير ينشئ إصدارًا جديدًا ثم ينشر صراحة.
 
 ## فهارس أولية
 
@@ -102,4 +116,6 @@ erDiagram
 - unique `(tenant_id, code)` و`(tenant_id, sku)` بحسب السياسة.
 - unique `(tenant_id, conversation_id, external_id)` للرسائل الخارجية.
 - unique `(tenant_id, normalized_value)` لاتصالات العملاء.
+- partial unique على Draft واحد وPublished واحد لكل Rule Set أو Knowledge Entry أو إعدادات متجر.
+- `(tenant_id, rule_set_id, created_at)` لتتبع قرارات السعر.
 - GIN انتقائي على `custom_attributes` بعد قياس Queries الحقيقية، لا افتراضيًا لكل شيء.
