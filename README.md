@@ -89,3 +89,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - Tenant-scoped transactions set both the candidate tenant and verified identity subject.
 - PostgreSQL RLS verifies active membership; supplying another tenant ID is insufficient.
 - GitHub CI applies migrations to a real PostgreSQL service and runs cross-tenant integration tests.
+
+- [API foundation](docs/API.md): protected tenant provisioning, membership listing, RLS reads and audit access.

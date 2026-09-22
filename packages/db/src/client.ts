@@ -4,6 +4,11 @@ import type { TenantContext } from '@ai-business/domain';
 export type DatabaseClient = postgres.Sql;
 export type TenantTransaction = postgres.TransactionSql;
 
+export interface IdentityTransactionContext {
+  readonly identitySubject: string;
+  readonly correlationId: string;
+}
+
 export function createDatabaseClient(databaseUrl: string): DatabaseClient {
   if (databaseUrl.trim().length === 0) {
     throw new Error('Database URL is required.');
@@ -14,6 +19,31 @@ export function createDatabaseClient(databaseUrl: string): DatabaseClient {
     idle_timeout: 20,
     connect_timeout: 10,
   });
+}
+
+export async function withIdentityTransaction<T>(
+  client: DatabaseClient,
+  context: IdentityTransactionContext,
+  operation: (transaction: TenantTransaction) => Promise<T>,
+): Promise<T> {
+  if (context.identitySubject.trim().length === 0) {
+    throw new Error('Verified identity subject is required.');
+  }
+  if (context.correlationId.trim().length === 0) {
+    throw new Error('Correlation ID is required.');
+  }
+
+  const result = await client.begin(async (transaction) => {
+    await transaction`
+      select
+        set_config('app.identity_subject', ${context.identitySubject}, true),
+        set_config('app.correlation_id', ${context.correlationId}, true)
+    `;
+
+    return operation(transaction);
+  });
+
+  return result as T;
 }
 
 /**

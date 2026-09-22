@@ -9,6 +9,7 @@ const tenantA = parseTenantId('11111111-1111-4111-8111-111111111111');
 const tenantB = parseTenantId('22222222-2222-4222-8222-222222222222');
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
+const provisioningUser = 'identity-user-provisioning-test';
 
 function context(tenantId: string, identitySubject: string): TenantContext {
   return {
@@ -22,6 +23,24 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   if (!databaseUrl) return;
 
   const admin = postgres(databaseUrl, { max: 1 });
+  let provisionedTenantId: string | undefined;
+
+  async function withRuntimeIdentity<T>(
+    identitySubject: string,
+    operation: (transaction: postgres.TransactionSql) => Promise<T>,
+  ): Promise<T> {
+    const result = await admin.begin(async (transaction) => {
+      await transaction.unsafe('set local role ai_business_runtime');
+      await transaction`
+        select
+          set_config('app.identity_subject', ${identitySubject}, true),
+          set_config('app.correlation_id', 'tenant-provisioning-test', true)
+      `;
+      return operation(transaction);
+    });
+
+    return result as T;
+  }
 
   async function withRuntimeTenant<T>(
     tenantContext: TenantContext,
@@ -65,6 +84,12 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       GRANT EXECUTE ON FUNCTION app_current_tenant_id() TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_identity_subject() TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_has_active_tenant_membership(uuid) TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_list_current_identity_memberships()
+        TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_current_membership_role(uuid)
+        TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_provision_tenant(text, text, text, text)
+        TO ai_business_runtime;
     `);
 
     await admin`
@@ -89,7 +114,60 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   afterAll(async () => {
+    if (provisionedTenantId) {
+      await admin`delete from audit_events where tenant_id = ${provisionedTenantId}`;
+      await admin`delete from tenants where id = ${provisionedTenantId}`;
+    }
+    await admin`
+      delete from app_users
+      where identity_provider_id = ${provisioningUser}
+        and not exists (
+          select 1 from memberships where user_id = app_users.id
+        )
+    `;
     await admin.end();
+  });
+
+  it('provisions a tenant, owner membership, and audit event atomically', async () => {
+    const [created] = await withRuntimeIdentity(
+      provisioningUser,
+      (tx) =>
+        tx<{ id: string }[]>`
+          select app_provision_tenant(
+            'Provisioned Pilot',
+            'pilot@example.test',
+            'ar-DZ',
+            'Africa/Algiers'
+          )::text as id
+        `,
+    );
+    if (!created) throw new Error('Provisioning did not return a tenant ID.');
+    expect(created.id).toMatch(/^[0-9a-f-]{36}$/);
+    provisionedTenantId = created.id;
+
+    const memberships = await withRuntimeIdentity(
+      provisioningUser,
+      (tx) =>
+        tx<{ tenantId: string; role: string }[]>`
+          select tenant_id::text as "tenantId", membership_role as role
+          from app_list_current_identity_memberships()
+        `,
+    );
+    expect(memberships).toContainEqual({
+      tenantId: created.id,
+      role: 'owner',
+    });
+
+    const [audit] = await admin<{ action: string; actorId: string }[]>`
+      select action, actor_id as "actorId"
+      from audit_events
+      where tenant_id = ${created.id}
+        and action = 'tenant.provisioned'
+    `;
+    expect(audit).toEqual({
+      action: 'tenant.provisioned',
+      actorId: provisioningUser,
+    });
   });
 
   it('shows only the active tenant to an active member', async () => {
