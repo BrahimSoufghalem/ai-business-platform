@@ -21,9 +21,10 @@
 | product_variants      | product_id, sku, attributes, price_override, status                            | توليفة قابلة للبيع                  |
 | product_media         | product_id, object_key, sort_order                                             | صور وملفات                          |
 | content_product_links | tenant_id, channel, external_content_id, product_id                            | Reel/Post/Product mapping           |
-| inventory_locations   | tenant_id, name                                                                | موقع واحد أولًا مع دعم التوسع       |
-| inventory_movements   | tenant_id, variant_id, type, quantity, reference_type/id                       | Ledger لا يعدّل مباشرة              |
-| inventory_balances    | tenant_id, variant_id, on_hand, reserved                                       | Projection ذري                      |
+| inventory_locations   | tenant_id, code, name, is_default                                              | موقع افتراضي واحد لكل متجر          |
+| inventory_movements   | tenant_id, location_id, variant_id, deltas, idempotency_key                    | Ledger append-only                  |
+| inventory_balances    | tenant_id, location_id, variant_id, on_hand, reserved, reorder_point           | Projection ذري                      |
+| stock_reservations    | tenant_id, location_id, variant_id, quantity, status, reference                | active → released/committed         |
 | customers             | tenant_id, name, phone, email, metadata                                        | Dedup داخل المتجر                   |
 | customer_addresses    | customer_id, label, address fields                                             | Snapshot لاحقًا داخل الطلب          |
 | conversations         | tenant_id, customer_id, channel, status, assigned_to                           | سياق المحادثة                       |

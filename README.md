@@ -2,7 +2,7 @@
 
 منصة SaaS متعددة المتاجر تجمع إدارة المنتجات والمخزون والطلبات والعملاء مع وكيل AI لخدمة العملاء، مع إبقاء النظام وقواعد العمل مصدر الحقيقة الوحيد.
 
-> **الحالة الحالية:** مستودع تخطيط لـ MVP v0.1. لا يحتوي بعد على كود إنتاجي.
+> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والعزل والكتالوج الديناميكي، وتتوفر الآن نواة مخزون ذرية قابلة للاختبار.
 
 ## مبادئ المنتج
 
@@ -38,6 +38,7 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 | [Product scope](docs/PRODUCT_SCOPE.md)      | النطاق، المستخدمون، المتطلبات ومعايير النجاح |
 | [Architecture](docs/ARCHITECTURE.md)        | التصميم المقترح وحدود النظام والتدفقات       |
 | [Data model](docs/DATA_MODEL.md)            | الكيانات والعلاقات والثوابت الحرجة           |
+| [Inventory API](docs/INVENTORY_API.md)      | الحركات والأرصدة والحجوزات ومنع overselling  |
 | [AI agent design](docs/AI_AGENT.md)         | السياق الديناميكي، الأدوات، الحماية والتقييم |
 | [Roadmap](docs/ROADMAP.md)                  | خطة تنفيذ MVP على مراحل ومسار حرج            |
 | [Security & privacy](docs/SECURITY.md)      | ضوابط العزل والوصول والأسرار والتدقيق        |
@@ -95,3 +96,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - [Dynamic Product Types API](docs/PRODUCT_TYPES_API.md): templates, custom schemas, optimistic versions, RBAC and RLS.
 
 - [Products & Variants API](docs/PRODUCTS_API.md): validated products, variants, revisions, signed media, search and Instagram content mapping.
+
+- [Inventory API](docs/INVENTORY_API.md): append-only ledger, atomic balances, reservations, idempotency and low-stock alerts.

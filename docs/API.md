@@ -26,6 +26,12 @@ All business routes use the `/api` prefix and require an OIDC Bearer access toke
 
 The authenticated OIDC `sub` becomes the first owner. Tenant ID values from the URL are only candidates: PostgreSQL RLS independently verifies an active membership before returning rows.
 
+## Business modules
+
+- [Dynamic Product Types](PRODUCT_TYPES_API.md)
+- [Products, Variants, Media & Content Mapping](PRODUCTS_API.md)
+- [Inventory Ledger, Balances & Reservations](INVENTORY_API.md)
+
 ## Required runtime configuration
 
 - `DATABASE_URL` — application runtime role; must not own tables or have `BYPASSRLS`.

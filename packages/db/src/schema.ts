@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  check,
   foreignKey,
   index,
   integer,
@@ -13,6 +14,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const tenantStatus = pgEnum('tenant_status', ['active', 'suspended']);
 export const membershipRole = pgEnum('membership_role', ['owner', 'manager', 'agent']);
@@ -28,6 +30,21 @@ export const attributeDataType = pgEnum('attribute_data_type', [
 export const productStatus = pgEnum('product_status', ['draft', 'active', 'archived']);
 export const productVariantStatus = pgEnum('product_variant_status', ['active', 'archived']);
 export const productMediaStatus = pgEnum('product_media_status', ['pending', 'ready', 'failed']);
+export const inventoryLocationStatus = pgEnum('inventory_location_status', ['active', 'archived']);
+export const inventoryMovementType = pgEnum('inventory_movement_type', [
+  'receive',
+  'adjust',
+  'reserve',
+  'release',
+  'sell',
+  'return',
+]);
+export const stockReservationStatus = pgEnum('stock_reservation_status', [
+  'active',
+  'released',
+  'committed',
+  'expired',
+]);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -254,6 +271,167 @@ export const productRevisions = pgTable(
     }).onDelete('cascade'),
     uniqueIndex('product_revisions_product_version_uq').on(table.productId, table.version),
     index('product_revisions_tenant_product_idx').on(table.tenantId, table.productId),
+  ],
+);
+
+export const inventoryLocations = pgTable(
+  'inventory_locations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    status: inventoryLocationStatus('status').notNull().default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('inventory_locations_tenant_code_uq').on(table.tenantId, table.code),
+    uniqueIndex('inventory_locations_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('inventory_locations_one_default_uq')
+      .on(table.tenantId)
+      .where(sql`${table.isDefault} = true`),
+    index('inventory_locations_tenant_status_idx').on(table.tenantId, table.status),
+  ],
+);
+
+export const stockReservations = pgTable(
+  'stock_reservations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    locationId: uuid('location_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    quantity: integer('quantity').notNull(),
+    status: stockReservationStatus('status').notNull().default('active'),
+    referenceType: text('reference_type').notNull(),
+    referenceId: text('reference_id').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [inventoryLocations.tenantId, inventoryLocations.id],
+      name: 'stock_reservations_tenant_location_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.id],
+      name: 'stock_reservations_tenant_variant_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('stock_reservations_tenant_id_id_uq').on(table.tenantId, table.id),
+    index('stock_reservations_tenant_status_idx').on(table.tenantId, table.status),
+    index('stock_reservations_tenant_reference_idx').on(
+      table.tenantId,
+      table.referenceType,
+      table.referenceId,
+    ),
+    check('stock_reservations_quantity_positive', sql`${table.quantity} > 0`),
+  ],
+);
+
+export const inventoryBalances = pgTable(
+  'inventory_balances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    locationId: uuid('location_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    onHand: integer('on_hand').notNull().default(0),
+    reserved: integer('reserved').notNull().default(0),
+    reorderPoint: integer('reorder_point').notNull().default(0),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [inventoryLocations.tenantId, inventoryLocations.id],
+      name: 'inventory_balances_tenant_location_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.id],
+      name: 'inventory_balances_tenant_variant_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('inventory_balances_tenant_location_variant_uq').on(
+      table.tenantId,
+      table.locationId,
+      table.variantId,
+    ),
+    index('inventory_balances_tenant_variant_idx').on(table.tenantId, table.variantId),
+    check('inventory_balances_on_hand_nonnegative', sql`${table.onHand} >= 0`),
+    check('inventory_balances_reserved_nonnegative', sql`${table.reserved} >= 0`),
+    check('inventory_balances_reserved_lte_on_hand', sql`${table.reserved} <= ${table.onHand}`),
+    check('inventory_balances_reorder_point_nonnegative', sql`${table.reorderPoint} >= 0`),
+  ],
+);
+
+export const inventoryMovements = pgTable(
+  'inventory_movements',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    locationId: uuid('location_id').notNull(),
+    variantId: uuid('variant_id').notNull(),
+    reservationId: uuid('reservation_id'),
+    type: inventoryMovementType('type').notNull(),
+    quantity: integer('quantity').notNull(),
+    onHandDelta: integer('on_hand_delta').notNull(),
+    reservedDelta: integer('reserved_delta').notNull(),
+    onHandAfter: integer('on_hand_after').notNull(),
+    reservedAfter: integer('reserved_after').notNull(),
+    referenceType: text('reference_type'),
+    referenceId: text('reference_id'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    commandFingerprint: text('command_fingerprint').notNull(),
+    reason: text('reason'),
+    actorId: text('actor_id').notNull(),
+    correlationId: text('correlation_id').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [inventoryLocations.tenantId, inventoryLocations.id],
+      name: 'inventory_movements_tenant_location_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.id],
+      name: 'inventory_movements_tenant_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.reservationId],
+      foreignColumns: [stockReservations.tenantId, stockReservations.id],
+      name: 'inventory_movements_tenant_reservation_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('inventory_movements_tenant_idempotency_uq').on(
+      table.tenantId,
+      table.idempotencyKey,
+    ),
+    index('inventory_movements_tenant_variant_created_idx').on(
+      table.tenantId,
+      table.variantId,
+      table.createdAt,
+    ),
+    index('inventory_movements_tenant_reservation_idx').on(table.tenantId, table.reservationId),
+    check('inventory_movements_quantity_positive', sql`${table.quantity} > 0`),
+    check('inventory_movements_on_hand_after_nonnegative', sql`${table.onHandAfter} >= 0`),
+    check('inventory_movements_reserved_after_nonnegative', sql`${table.reservedAfter} >= 0`),
+    check(
+      'inventory_movements_reserved_after_lte_on_hand',
+      sql`${table.reservedAfter} <= ${table.onHandAfter}`,
+    ),
+    check(
+      'inventory_movements_adjust_reason_required',
+      sql`${table.type} <> 'adjust' OR length(trim(coalesce(${table.reason}, ''))) > 0`,
+    ),
   ],
 );
 

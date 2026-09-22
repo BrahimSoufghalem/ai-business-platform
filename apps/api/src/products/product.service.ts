@@ -92,6 +92,10 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
 
+function isForeignKeyViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === '23503';
+}
+
 type JsonInput = Parameters<TenantTransaction['json']>[0];
 
 function asJsonInput(value: unknown): JsonInput {
@@ -461,6 +465,11 @@ export class ProductService {
     } catch (error) {
       if (isUniqueViolation(error)) {
         throw new ConflictException('Product code or variant SKU already exists.');
+      }
+      if (isForeignKeyViolation(error)) {
+        throw new ConflictException(
+          'Variants with inventory history cannot be replaced; archive them and add a new variant.',
+        );
       }
       throw error;
     }
