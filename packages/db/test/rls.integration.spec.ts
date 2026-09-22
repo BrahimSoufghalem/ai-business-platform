@@ -1,6 +1,15 @@
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseTenantId, type TenantContext } from '@ai-business/domain';
+import {
+  InventoryIdempotencyConflictError,
+  InventoryInsufficientStockError,
+  InventoryReservationStateError,
+  commitInventoryReservation,
+  receiveInventory,
+  releaseInventoryReservation,
+  reserveInventory,
+} from '../src/inventory-commands.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -10,6 +19,7 @@ const tenantB = parseTenantId('22222222-2222-4222-8222-222222222222');
 const productTypeA = '33333333-3333-4333-8333-333333333333';
 const productA = '44444444-4444-4444-8444-444444444444';
 const variantA = '55555555-5555-4555-8555-555555555555';
+const inventoryLocationA = '66666666-6666-4666-8666-666666666666';
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
 const provisioningUser = 'identity-user-provisioning-test';
@@ -25,7 +35,7 @@ function context(tenantId: string, identitySubject: string): TenantContext {
 describeWithDatabase('PostgreSQL tenant RLS', () => {
   if (!databaseUrl) return;
 
-  const admin = postgres(databaseUrl, { max: 1 });
+  const admin = postgres(databaseUrl, { max: 5 });
   let provisionedTenantId: string | undefined;
 
   async function withRuntimeIdentity<T>(
@@ -84,7 +94,11 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       GRANT SELECT, INSERT, UPDATE, DELETE
         ON tenants, memberships, audit_events, product_types, attribute_definitions,
            products, product_variants, product_media, content_product_links,
-           product_revisions
+           product_revisions, inventory_locations, inventory_balances,
+           stock_reservations
+        TO ai_business_runtime;
+      GRANT SELECT, INSERT, UPDATE, DELETE
+        ON inventory_movements
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_tenant_id() TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_identity_subject() TO ai_business_runtime;
@@ -116,9 +130,42 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
         (${tenantB}, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'owner', 'active')
       on conflict (tenant_id, user_id) do update set status = 'active'
     `;
+    await admin`
+      insert into product_types (id, tenant_id, name, slug)
+      values (${productTypeA}, ${tenantA}, 'Smartphones', 'smartphones')
+      on conflict (id) do update set name = excluded.name
+    `;
+    await admin`
+      insert into products (
+        id, tenant_id, product_type_id, code, name, base_price,
+        custom_attributes, product_type_schema_version
+      ) values (
+        ${productA}, ${tenantA}, ${productTypeA}, 'P-TEST', 'Test Phone', 100000,
+        '{"ram_gb": 8}'::jsonb, 1
+      )
+      on conflict (id) do update set name = excluded.name
+    `;
+    await admin`
+      insert into product_variants (
+        id, tenant_id, product_id, sku, attributes
+      ) values (
+        ${variantA}, ${tenantA}, ${productA}, 'P-TEST-BLACK',
+        '{"storage": "128 GB", "color": "Black"}'::jsonb
+      )
+      on conflict (id) do update set sku = excluded.sku
+    `;
+    await admin`
+      insert into inventory_locations (id, tenant_id, code, name, is_default)
+      values (${inventoryLocationA}, ${tenantA}, 'MAIN', 'Main warehouse', true)
+      on conflict (id) do update set name = excluded.name
+    `;
   });
 
   afterAll(async () => {
+    await admin`delete from inventory_movements where tenant_id = ${tenantA}`;
+    await admin`delete from stock_reservations where tenant_id = ${tenantA}`;
+    await admin`delete from inventory_balances where tenant_id = ${tenantA}`;
+    await admin`delete from inventory_locations where tenant_id = ${tenantA}`;
     await admin`delete from products where id = ${productA}`;
     await admin`delete from product_types where id = ${productTypeA}`;
     if (provisionedTenantId) {
@@ -335,6 +382,243 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       (tx) => tx<{ id: string }[]>`select id::text from products where id = ${productA}`,
     );
     expect(hiddenFromTenantB).toEqual([]);
+  });
+
+  it('isolates inventory projections and the append-only ledger by tenant', async () => {
+    await withRuntimeTenant(context(tenantA, userA), async (tx) => {
+      await tx`
+        insert into inventory_balances (
+          tenant_id, location_id, variant_id, on_hand, reserved
+        ) values (${tenantA}, ${inventoryLocationA}, ${variantA}, 0, 0)
+        on conflict (tenant_id, location_id, variant_id) do nothing
+      `;
+    });
+
+    const visibleToTenantA = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<{ locationId: string; variantId: string }[]>`
+          select
+            location_id::text as "locationId",
+            variant_id::text as "variantId"
+          from inventory_balances
+          where tenant_id = ${tenantA}
+        `,
+    );
+    expect(visibleToTenantA).toEqual([{ locationId: inventoryLocationA, variantId: variantA }]);
+
+    const hiddenFromTenantB = await withRuntimeTenant(
+      context(tenantB, userB),
+      (tx) => tx<{ id: string }[]>`select id::text from inventory_locations`,
+    );
+    expect(hiddenFromTenantB).toEqual([]);
+  });
+
+  it('prevents overselling, replays retries, and reconciles balances to the ledger', async () => {
+    await admin`delete from inventory_movements where tenant_id = ${tenantA}`;
+    await admin`delete from stock_reservations where tenant_id = ${tenantA}`;
+    await admin`
+      update inventory_balances
+      set on_hand = 0, reserved = 0, reorder_point = 0
+      where tenant_id = ${tenantA}
+        and location_id = ${inventoryLocationA}
+        and variant_id = ${variantA}
+    `;
+
+    const commandContext = (suffix: string) => ({
+      tenantId: tenantA,
+      actorId: userA,
+      correlationId: `inventory-${suffix}`,
+    });
+    const receiveInput = {
+      locationId: inventoryLocationA,
+      variantId: variantA,
+      quantity: 1,
+      referenceType: 'purchase_order',
+      referenceId: 'po-1',
+      idempotencyKey: 'receive-last-unit',
+    };
+    const received = await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      receiveInventory(tx, commandContext('receive'), receiveInput),
+    );
+    const receivedAgain = await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      receiveInventory(tx, commandContext('receive-retry'), receiveInput),
+    );
+    expect(received.replayed).toBe(false);
+    expect(receivedAgain.replayed).toBe(true);
+    expect(receivedAgain.movement.id).toBe(received.movement.id);
+
+    const reservationInputs = [
+      {
+        locationId: inventoryLocationA,
+        variantId: variantA,
+        quantity: 1,
+        referenceType: 'draft_order',
+        referenceId: 'draft-a',
+        idempotencyKey: 'reserve-last-unit-a',
+      },
+      {
+        locationId: inventoryLocationA,
+        variantId: variantA,
+        quantity: 1,
+        referenceType: 'draft_order',
+        referenceId: 'draft-b',
+        idempotencyKey: 'reserve-last-unit-b',
+      },
+    ] as const;
+    const competingReservations = await Promise.allSettled(
+      reservationInputs.map((input, index) =>
+        withRuntimeTenant(context(tenantA, userA), (tx) =>
+          reserveInventory(tx, commandContext(`reserve-${index}`), input),
+        ),
+      ),
+    );
+    const acceptedReservations = competingReservations.filter(
+      (result) => result.status === 'fulfilled',
+    );
+    const rejectedReservations = competingReservations.filter(
+      (result) => result.status === 'rejected',
+    );
+    expect(acceptedReservations).toHaveLength(1);
+    expect(rejectedReservations).toHaveLength(1);
+    const acceptedReservation = acceptedReservations[0];
+    const rejectedReservation = rejectedReservations[0];
+    if (acceptedReservation?.status !== 'fulfilled') {
+      throw new Error('Expected one accepted reservation.');
+    }
+    if (rejectedReservation?.status !== 'rejected') {
+      throw new Error('Expected one rejected reservation.');
+    }
+    expect(rejectedReservation.reason).toBeInstanceOf(InventoryInsufficientStockError);
+    if (!acceptedReservation.value.reservation) {
+      throw new Error('The accepted command did not return a reservation.');
+    }
+
+    const acceptedInput = reservationInputs.find(
+      (input) => input.referenceId === acceptedReservation.value.reservation?.referenceId,
+    );
+    if (!acceptedInput) throw new Error('Could not identify the accepted reservation input.');
+    const reservationRetry = await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      reserveInventory(tx, commandContext('reserve-retry'), acceptedInput),
+    );
+    expect(reservationRetry.replayed).toBe(true);
+    expect(reservationRetry.movement.id).toBe(acceptedReservation.value.movement.id);
+
+    const reservationId = acceptedReservation.value.reservation.id;
+    const confirmations = await Promise.allSettled([
+      withRuntimeTenant(context(tenantA, userA), (tx) =>
+        commitInventoryReservation(tx, commandContext('commit-a'), reservationId, {
+          idempotencyKey: 'commit-last-unit-a',
+        }),
+      ),
+      withRuntimeTenant(context(tenantA, userA), (tx) =>
+        commitInventoryReservation(tx, commandContext('commit-b'), reservationId, {
+          idempotencyKey: 'commit-last-unit-b',
+        }),
+      ),
+    ]);
+    expect(confirmations.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejectedConfirmation = confirmations.find((result) => result.status === 'rejected');
+    if (rejectedConfirmation?.status !== 'rejected') {
+      throw new Error('Expected one rejected confirmation.');
+    }
+    expect(rejectedConfirmation.reason).toBeInstanceOf(InventoryReservationStateError);
+
+    await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      receiveInventory(tx, commandContext('receive-release'), {
+        locationId: inventoryLocationA,
+        variantId: variantA,
+        quantity: 1,
+        idempotencyKey: 'receive-release-test',
+      }),
+    );
+    const releasable = await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      reserveInventory(tx, commandContext('reserve-release'), {
+        locationId: inventoryLocationA,
+        variantId: variantA,
+        quantity: 1,
+        referenceType: 'draft_order',
+        referenceId: 'draft-release',
+        idempotencyKey: 'reserve-release-test',
+      }),
+    );
+    if (!releasable.reservation) throw new Error('Reservation was not created.');
+    const releaseInput = {
+      idempotencyKey: 'release-reservation-once',
+      reason: 'Draft order cancelled',
+    };
+    const released = await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      releaseInventoryReservation(
+        tx,
+        commandContext('release'),
+        releasable.reservation!.id,
+        releaseInput,
+      ),
+    );
+    const releasedAgain = await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      releaseInventoryReservation(
+        tx,
+        commandContext('release-retry'),
+        releasable.reservation!.id,
+        releaseInput,
+      ),
+    );
+    expect(released.replayed).toBe(false);
+    expect(releasedAgain.replayed).toBe(true);
+    expect(releasedAgain.movement.id).toBe(released.movement.id);
+
+    await expect(
+      withRuntimeTenant(context(tenantA, userA), (tx) =>
+        receiveInventory(tx, commandContext('conflicting-retry'), {
+          ...receiveInput,
+          quantity: 2,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(InventoryIdempotencyConflictError);
+
+    const [reconciliation] = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<
+          {
+            onHand: number;
+            reserved: number;
+            ledgerOnHand: number;
+            ledgerReserved: number;
+          }[]
+        >`
+          select
+            balance.on_hand as "onHand", balance.reserved,
+            coalesce(sum(movement.on_hand_delta), 0)::int as "ledgerOnHand",
+            coalesce(sum(movement.reserved_delta), 0)::int as "ledgerReserved"
+          from inventory_balances as balance
+          left join inventory_movements as movement
+            on movement.tenant_id = balance.tenant_id
+           and movement.location_id = balance.location_id
+           and movement.variant_id = balance.variant_id
+          where balance.tenant_id = ${tenantA}
+            and balance.location_id = ${inventoryLocationA}
+            and balance.variant_id = ${variantA}
+          group by balance.on_hand, balance.reserved
+        `,
+    );
+    expect(reconciliation).toEqual({
+      onHand: 1,
+      reserved: 0,
+      ledgerOnHand: 1,
+      ledgerReserved: 0,
+    });
+
+    const tampered = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<{ id: string }[]>`
+          update inventory_movements set reason = 'tampered'
+          where tenant_id = ${tenantA} and id = ${received.movement.id}
+          returning id::text
+        `,
+    );
+    expect(tampered).toEqual([]);
   });
 
   it('rejects a cross-tenant audit write even when the candidate tenant is supplied', async () => {
