@@ -47,6 +47,9 @@ importers:
       '@ai-business/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@ai-business/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@ai-business/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -71,6 +74,9 @@ importers:
       rxjs:
         specifier: ^7.8.2
         version: 7.8.2
+      zod:
+        specifier: ^4.1.5
+        version: 4.6.5
 
   apps/web:
     dependencies:
@@ -2193,6 +2199,9 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+
 snapshots:
 
   '@borewit/text-codec@0.2.2': {}
@@ -3909,3 +3918,5 @@ snapshots:
   word-wrap@1.2.5: {}
 
   yocto-queue@0.1.0: {}
+
+  zod@4.6.5: {}
