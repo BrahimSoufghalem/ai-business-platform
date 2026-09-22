@@ -1,8 +1,9 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { VerifiedIdentity } from '@ai-business/auth';
-import { PermissionDeniedError, requirePermission, type MembershipRole } from '@ai-business/domain';
+import type { MembershipRole } from '@ai-business/domain';
 import { withIdentityTransaction, withTenantTransaction } from '@ai-business/db';
 import { createCandidateTenantContext } from '../tenancy/trusted-tenant-context.js';
+import { authorizeTenantPermission } from '../tenancy/tenant-authorization.js';
 import { DatabaseService } from '../database/database.service.js';
 import type { CreateTenantInput } from './tenant.schemas.js';
 
@@ -118,19 +119,7 @@ export class TenantService {
     const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
 
     return withTenantTransaction(this.database.client, context, async (transaction) => {
-      const [membership] = await transaction<{ role: MembershipRole | null }[]>`
-        select app_current_membership_role(${context.tenantId}) as role
-      `;
-      if (!membership?.role) throw new NotFoundException('Tenant not found.');
-
-      try {
-        requirePermission(membership.role, 'audit:read');
-      } catch (error) {
-        if (error instanceof PermissionDeniedError) {
-          throw new ForbiddenException('The active role cannot read audit events.');
-        }
-        throw error;
-      }
+      await authorizeTenantPermission(transaction, context.tenantId, 'audit:read');
 
       const rows = await transaction<
         {
