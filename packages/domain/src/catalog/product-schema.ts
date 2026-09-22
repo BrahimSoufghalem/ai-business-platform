@@ -222,3 +222,32 @@ export function validateCustomAttributes(
   if (issues.length > 0) throw new CatalogSchemaValidationError(issues);
   return normalized;
 }
+
+export function validateProductLevelAttributes(
+  definitions: readonly AttributeDefinition[],
+  value: unknown,
+  options: { readonly partial?: boolean } = {},
+): Readonly<Record<string, unknown>> {
+  return validateCustomAttributes(
+    definitions.filter((definition) => !definition.variantAxis),
+    value,
+    options,
+  );
+}
+
+export function validateVariantAttributes(
+  definitions: readonly AttributeDefinition[],
+  value: unknown,
+  options: { readonly partial?: boolean } = {},
+): Readonly<Record<string, unknown>> {
+  const variantDefinitions = definitions
+    .filter((definition) => definition.variantAxis)
+    .map((definition) => ({ ...definition, required: true }));
+  return validateCustomAttributes(variantDefinitions, value, options);
+}
+
+export function canonicalizeAttributes(value: Readonly<Record<string, unknown>>): string {
+  return JSON.stringify(
+    Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))),
+  );
+}

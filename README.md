@@ -93,3 +93,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - [API foundation](docs/API.md): protected tenant provisioning, membership listing, RLS reads and audit access.
 
 - [Dynamic Product Types API](docs/PRODUCT_TYPES_API.md): templates, custom schemas, optimistic versions, RBAC and RLS.
+
+- [Products & Variants API](docs/PRODUCTS_API.md): validated products, variants, revisions, signed media, search and Instagram content mapping.

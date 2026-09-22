@@ -8,6 +8,8 @@ const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const tenantA = parseTenantId('11111111-1111-4111-8111-111111111111');
 const tenantB = parseTenantId('22222222-2222-4222-8222-222222222222');
 const productTypeA = '33333333-3333-4333-8333-333333333333';
+const productA = '44444444-4444-4444-8444-444444444444';
+const variantA = '55555555-5555-4555-8555-555555555555';
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
 const provisioningUser = 'identity-user-provisioning-test';
@@ -80,7 +82,9 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
 
       GRANT USAGE ON SCHEMA public TO ai_business_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE
-        ON tenants, memberships, audit_events, product_types, attribute_definitions
+        ON tenants, memberships, audit_events, product_types, attribute_definitions,
+           products, product_variants, product_media, content_product_links,
+           product_revisions
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_tenant_id() TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_identity_subject() TO ai_business_runtime;
@@ -115,6 +119,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   afterAll(async () => {
+    await admin`delete from products where id = ${productA}`;
     await admin`delete from product_types where id = ${productTypeA}`;
     if (provisionedTenantId) {
       await admin`delete from audit_events where tenant_id = ${provisionedTenantId}`;
@@ -244,6 +249,90 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
         tx<{ id: string }[]>`
           select id::text from product_types where id = ${productTypeA}
         `,
+    );
+    expect(hiddenFromTenantB).toEqual([]);
+  });
+
+  it('isolates products, variants, content links, and immutable revisions', async () => {
+    await withRuntimeTenant(context(tenantA, userA), async (tx) => {
+      await tx`
+        insert into product_types (id, tenant_id, name, slug)
+        values (${productTypeA}, ${tenantA}, 'Smartphones', 'smartphones')
+        on conflict (id) do update set name = excluded.name
+      `;
+      await tx`
+        insert into products (
+          id, tenant_id, product_type_id, code, name, base_price,
+          custom_attributes, product_type_schema_version
+        ) values (
+          ${productA}, ${tenantA}, ${productTypeA}, 'P-TEST', 'Test Phone', 100000,
+          '{"ram_gb": 8}'::jsonb, 1
+        )
+        on conflict (id) do update set name = excluded.name
+      `;
+      await tx`
+        insert into product_variants (
+          id, tenant_id, product_id, sku, attributes
+        ) values (
+          ${variantA}, ${tenantA}, ${productA}, 'P-TEST-BLACK',
+          '{"storage": "128 GB", "color": "Black"}'::jsonb
+        )
+        on conflict (id) do update set sku = excluded.sku
+      `;
+      await tx`
+        insert into content_product_links (
+          tenant_id, channel, external_content_id, product_id
+        ) values (
+          ${tenantA}, 'instagram', 'reel-test-1', ${productA}
+        )
+        on conflict (tenant_id, channel, external_content_id)
+        do update set product_id = excluded.product_id
+      `;
+      await tx`
+        insert into product_revisions (
+          tenant_id, product_id, version, snapshot, actor_id
+        ) values (
+          ${tenantA}, ${productA}, 1, '{"name": "Test Phone"}'::jsonb, ${userA}
+        )
+        on conflict (product_id, version) do nothing
+      `;
+      await tx`
+        update products set name = 'Renamed Phone', version = 2
+        where tenant_id = ${tenantA} and id = ${productA}
+      `;
+    });
+
+    const visibleToTenantA = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<{ code: string; sku: string; externalContentId: string; snapshotName: string }[]>`
+          select
+            product.code,
+            variant.sku,
+            link.external_content_id as "externalContentId",
+            revision.snapshot->>'name' as "snapshotName"
+          from products as product
+          join product_variants as variant
+            on variant.tenant_id = product.tenant_id and variant.product_id = product.id
+          join content_product_links as link
+            on link.tenant_id = product.tenant_id and link.product_id = product.id
+          join product_revisions as revision
+            on revision.tenant_id = product.tenant_id and revision.product_id = product.id
+          where product.id = ${productA} and revision.version = 1
+        `,
+    );
+    expect(visibleToTenantA).toEqual([
+      {
+        code: 'P-TEST',
+        sku: 'P-TEST-BLACK',
+        externalContentId: 'reel-test-1',
+        snapshotName: 'Test Phone',
+      },
+    ]);
+
+    const hiddenFromTenantB = await withRuntimeTenant(
+      context(tenantB, userB),
+      (tx) => tx<{ id: string }[]>`select id::text from products where id = ${productA}`,
     );
     expect(hiddenFromTenantB).toEqual([]);
   });
