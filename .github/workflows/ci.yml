@@ -90,5 +90,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @ai-business/domain build
+      - run: pnpm --filter @ai-business/db build
       - run: pnpm db:migrate
       - run: pnpm --filter @ai-business/db test:integration
+      - run: pnpm --filter @ai-business/api test:integration

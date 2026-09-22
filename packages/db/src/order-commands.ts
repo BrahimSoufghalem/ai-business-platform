@@ -29,6 +29,7 @@ export interface OrderCommandResult {
 
 interface DraftOrderRow {
   id: string;
+  customerId: string | null;
   status: DraftOrderStatus;
   version: number;
   customerName: string | null;
@@ -257,7 +258,8 @@ export async function confirmDraftOrder(
 
   const [draft] = await transaction<DraftOrderRow[]>`
     select
-      id::text, status::text, version, customer_name as "customerName",
+      id::text, customer_id::text as "customerId", status::text, version,
+      customer_name as "customerName",
       customer_phone as "customerPhone", customer_email as "customerEmail",
       shipping_address as "shippingAddress", notes,
       custom_fields as "customFields", currency, subtotal::text,
@@ -340,13 +342,13 @@ export async function confirmDraftOrder(
 
   await transaction`
     insert into orders (
-      id, tenant_id, source_draft_order_id, number, status, version,
+      id, tenant_id, source_draft_order_id, customer_id, number, status, version,
       customer_name, customer_phone, customer_email, shipping_address,
       notes, custom_fields, currency, subtotal, discount_amount,
       shipping_amount, total
     ) values (
-      ${input.orderId}, ${context.tenantId}, ${draft.id}, ${input.orderNumber},
-      'new', 1, ${draft.customerName}, ${draft.customerPhone},
+      ${input.orderId}, ${context.tenantId}, ${draft.id}, ${draft.customerId},
+      ${input.orderNumber}, 'new', 1, ${draft.customerName}, ${draft.customerPhone},
       ${draft.customerEmail}, ${transaction.json(jsonInput(draft.shippingAddress))},
       ${draft.notes}, ${transaction.json(jsonInput(draft.customFields))}, ${draft.currency},
       ${draft.subtotal}, ${draft.discountAmount}, ${draft.shippingAmount}, ${draft.total}

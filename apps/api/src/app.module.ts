@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module.js';
 import { CatalogModule } from './catalog/catalog.module.js';
+import { ConversationModule } from './conversations/conversation.module.js';
+import { CustomerModule } from './customers/customer.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InventoryModule } from './inventory/inventory.module.js';
@@ -19,6 +21,8 @@ import { TenantModule } from './tenants/tenant.module.js';
     ProductsModule,
     InventoryModule,
     OrderModule,
+    CustomerModule,
+    ConversationModule,
   ],
   controllers: [HealthController],
 })

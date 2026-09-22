@@ -19,6 +19,9 @@ export default function HomePage() {
           <span className="dot" aria-hidden="true" />
           مرحلة التأسيس قيد التنفيذ
         </div>
+        <a className="primary-link" href="/inbox">
+          فتح الصندوق الداخلي
+        </a>
       </section>
 
       <section className="grid" aria-label="أسس المنصة">

@@ -2,7 +2,7 @@
 
 منصة SaaS متعددة المتاجر تجمع إدارة المنتجات والمخزون والطلبات والعملاء مع وكيل AI لخدمة العملاء، مع إبقاء النظام وقواعد العمل مصدر الحقيقة الوحيد.
 
-> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون، وتتوفر دورة Draft Order وطلب مؤكّد بحالات مضبوطة.
+> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون والطلبات وملفات العملاء، ويتوفر صندوق محادثات داخلي بحالات وتعيين مضبوطين.
 
 ## مبادئ المنتج
 
@@ -32,19 +32,20 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 
 ## خريطة الوثائق
 
-| الوثيقة                                     | الغرض                                         |
-| ------------------------------------------- | --------------------------------------------- |
-| [Product brief](docs/PRODUCT_BRIEF.md)      | الملخص الأصلي ومتطلبات صاحب الفكرة            |
-| [Product scope](docs/PRODUCT_SCOPE.md)      | النطاق، المستخدمون، المتطلبات ومعايير النجاح  |
-| [Architecture](docs/ARCHITECTURE.md)        | التصميم المقترح وحدود النظام والتدفقات        |
-| [Data model](docs/DATA_MODEL.md)            | الكيانات والعلاقات والثوابت الحرجة            |
-| [Inventory API](docs/INVENTORY_API.md)      | الحركات والأرصدة والحجوزات ومنع overselling   |
-| [Orders API](docs/ORDERS_API.md)            | Drafts والتأكيد والحالات وSnapshots التاريخية |
-| [AI agent design](docs/AI_AGENT.md)         | السياق الديناميكي، الأدوات، الحماية والتقييم  |
-| [Roadmap](docs/ROADMAP.md)                  | خطة تنفيذ MVP على مراحل ومسار حرج             |
-| [Security & privacy](docs/SECURITY.md)      | ضوابط العزل والوصول والأسرار والتدقيق         |
-| [ADR-0001](docs/adr/0001-proposed-stack.md) | Stack مقترح يحتاج اعتمادًا قبل بدء التنفيذ    |
-| [Contributing](CONTRIBUTING.md)             | طريقة العمل وجودة الـPRs                      |
+| الوثيقة                                                          | الغرض                                         |
+| ---------------------------------------------------------------- | --------------------------------------------- |
+| [Product brief](docs/PRODUCT_BRIEF.md)                           | الملخص الأصلي ومتطلبات صاحب الفكرة            |
+| [Product scope](docs/PRODUCT_SCOPE.md)                           | النطاق، المستخدمون، المتطلبات ومعايير النجاح  |
+| [Architecture](docs/ARCHITECTURE.md)                             | التصميم المقترح وحدود النظام والتدفقات        |
+| [Data model](docs/DATA_MODEL.md)                                 | الكيانات والعلاقات والثوابت الحرجة            |
+| [Inventory API](docs/INVENTORY_API.md)                           | الحركات والأرصدة والحجوزات ومنع overselling   |
+| [Orders API](docs/ORDERS_API.md)                                 | Drafts والتأكيد والحالات وSnapshots التاريخية |
+| [Customers & Conversations](docs/CUSTOMERS_CONVERSATIONS_API.md) | الملفات الموحدة والرسائل والصندوق الداخلي     |
+| [AI agent design](docs/AI_AGENT.md)                              | السياق الديناميكي، الأدوات، الحماية والتقييم  |
+| [Roadmap](docs/ROADMAP.md)                                       | خطة تنفيذ MVP على مراحل ومسار حرج             |
+| [Security & privacy](docs/SECURITY.md)                           | ضوابط العزل والوصول والأسرار والتدقيق         |
+| [ADR-0001](docs/adr/0001-proposed-stack.md)                      | Stack مقترح يحتاج اعتمادًا قبل بدء التنفيذ    |
+| [Contributing](CONTRIBUTING.md)                                  | طريقة العمل وجودة الـPRs                      |
 
 ## الشكل المقترح للمستودع بعد اعتماد الـStack
 
@@ -101,3 +102,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - [Inventory API](docs/INVENTORY_API.md): append-only ledger, atomic balances, reservations, idempotency and low-stock alerts.
 
 - [Orders API](docs/ORDERS_API.md): editable drafts, explicit approval, atomic stock reservation, state transitions and immutable price snapshots.
+
+- [Customers & Conversations API](docs/CUSTOMERS_CONVERSATIONS_API.md): normalized contacts, tenant-safe deduplication, customer history, idempotent messages and the internal employee inbox.
