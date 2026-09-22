@@ -50,6 +50,9 @@ importers:
       '@ai-business/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@ai-business/customer-agent':
+        specifier: workspace:*
+        version: link:../../packages/customer-agent
       '@ai-business/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -116,6 +119,15 @@ importers:
       jose:
         specifier: ^6.1.0
         version: 6.2.12
+
+  packages/customer-agent:
+    dependencies:
+      '@ai-business/ai-gateway':
+        specifier: workspace:*
+        version: link:../ai-gateway
+      zod:
+        specifier: ^4.1.5
+        version: 4.6.5
 
   packages/db:
     dependencies:

@@ -109,6 +109,19 @@ sequenceDiagram
 
 لا يجوز للـProvider SDK الظهور خارج حزمة `ai-gateway`.
 
+## Grounded Customer Agent
+
+تطبق حزمة `@ai-business/customer-agent` طبقة orchestration المستقلة عن Framework:
+
+- Router حتمي للمسارات الثابتة والمباشرة والسريعة والقوية والتحويل.
+- `CustomerAgentDataSource` كـPort؛ Adapter الـAPI وحده يربطه بخدمات Catalog وInventory وRules وKnowledge.
+- ذاكرة محادثة محدودة ومنقحة لا تشمل الرسائل الداخلية.
+- أدوات قراءة مغلقة الـSchema ومرتبطة بالـIntent.
+- Grounding verifier يربط كل Claim بنتيجة Tool ناجحة من الـRun نفسه.
+- `messageId` هو مفتاح إعادة تشغيل رد البوت، بينما `runId` وTool Call IDs توفر trace كاملًا.
+
+المسار المباشر يظل داخل Tool Registry ويسجل Run؛ لا يقرأ الـruntime قاعدة البيانات مباشرة. الرد الذي يفشل التحقق يتحول قبل التسليم ويسجل Outcome النهائي كـHandoff.
+
 ## API وEvents
 
 - REST/JSON مناسب للـMVP؛ OpenAPI يولد clients وأنواع الطلبات.

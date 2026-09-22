@@ -9,7 +9,7 @@ const sensitiveKey =
 const bearerToken = /\bBearer\s+[A-Za-z0-9._~+/=-]{7,}[A-Za-z0-9_~+/=-]/gi;
 const jwtToken = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g;
 const emailAddress = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
-const internationalPhone = /(?:\+|00)\d[\d\s().-]{7,}\d/g;
+const internationalPhone = /(?<![A-Za-z0-9-])(?:\+|00)\d(?:[\s().-]?\d){7,14}(?![A-Za-z0-9-])/g;
 
 function redactString(value: string): string {
   const safe = value

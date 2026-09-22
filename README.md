@@ -2,7 +2,7 @@
 
 منصة SaaS متعددة المتاجر تجمع إدارة المنتجات والمخزون والطلبات والعملاء مع وكيل AI لخدمة العملاء، مع إبقاء النظام وقواعد العمل مصدر الحقيقة الوحيد.
 
-> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون والطلبات والعملاء والمحادثات والقواعد والمعرفة، وأضيف AI Gateway مستقل مع Routing وTools وBudgets وTelemetry منقحة.
+> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون والطلبات والعملاء والمحادثات والقواعد والمعرفة وAI Gateway، وأضيف Grounded Customer Agent داخلي مع Router وأدوات قراءة وذاكرة محدودة واختبارات عربية.
 
 ## مبادئ المنتج
 
@@ -43,6 +43,7 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 | [Customers & Conversations](docs/CUSTOMERS_CONVERSATIONS_API.md) | الملفات الموحدة والرسائل والصندوق الداخلي     |
 | [Rules & Knowledge](docs/RULES_KNOWLEDGE_API.md)                 | قواعد السعر والمعرفة وإعدادات الوكيل بإصدارات |
 | [AI Gateway](docs/AI_GATEWAY.md)                                 | المزودون وRouting والأدوات والميزانية والتتبع |
+| [Grounded Customer Agent](docs/CUSTOMER_AGENT.md)                | runtime والـGrounding والذاكرة والتقييم       |
 | [AI agent design](docs/AI_AGENT.md)                              | السياق الديناميكي، الأدوات، الحماية والتقييم  |
 | [Roadmap](docs/ROADMAP.md)                                       | خطة تنفيذ MVP على مراحل ومسار حرج             |
 | [Security & privacy](docs/SECURITY.md)                           | ضوابط العزل والوصول والأسرار والتدقيق         |
@@ -60,6 +61,7 @@ packages/
 ├── domain/       # كيانات وقواعد العمل
 ├── db/           # Schema، migrations وtenant helpers
 ├── ai-gateway/   # Routing، providers، tools وguardrails
+├── customer-agent/ # Intent router، grounded runtime وevaluations
 ├── integrations/ # Adapters للقنوات الخارجية
 ├── config/       # Product schemas وbusiness rules
 └── shared/       # أنواع وأدوات مشتركة
@@ -110,3 +112,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - [Business Rules, Knowledge & Agent Settings](docs/RULES_KNOWLEDGE_API.md): typed pricing decisions, immutable draft/published versions, untrusted knowledge grounding and safe runtime settings.
 
 - [AI Gateway](docs/AI_GATEWAY.md): provider-neutral adapters, task/cost/speed routing, validated tools and outputs, retries, circuit breaking, budgets, handoff and redacted run telemetry.
+
+- [Grounded Customer Agent](docs/CUSTOMER_AGENT.md): deterministic/direct/model routing, store-scoped read tools, variant clarification, bounded memory, prompt-injection blocking, evidence validation and Arabic evaluation cases.

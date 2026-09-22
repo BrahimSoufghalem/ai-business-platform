@@ -34,6 +34,7 @@ The authenticated OIDC `sub` becomes the first owner. Tenant ID values from the 
 - [Draft Orders & Order Lifecycle](ORDERS_API.md)
 - [Customers, Conversations & Internal Inbox](CUSTOMERS_CONVERSATIONS_API.md)
 - [Business Rules, Knowledge Base & Agent Settings](RULES_KNOWLEDGE_API.md)
+- [Grounded Customer Agent](CUSTOMER_AGENT.md)
 
 ## Required runtime configuration
 
@@ -41,5 +42,7 @@ The authenticated OIDC `sub` becomes the first owner. Tenant ID values from the 
 - `AUTH_ISSUER`
 - `AUTH_AUDIENCE`
 - `AUTH_JWKS_URI`
+
+الـAI provider اختياري للمسارات المركبة. عند تفعيله تُضبط `AI_PROVIDER_BASE_URL`, `AI_PROVIDER_API_KEY` و`AI_PROVIDER_FAST_MODEL` من Secret Manager؛ المسارات التي لا تحتاج نموذجًا تعمل بدونه، وما عداه يتحول بأمان.
 
 Migrations should run with a separate privileged connection. Never use the migration owner as the long-running API role.

@@ -2,8 +2,14 @@ import { NotFoundException } from '@nestjs/common';
 import { createDatabaseClient } from '@ai-business/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ConversationService } from '../src/conversations/conversation.service.js';
+import { AgentSettingsService } from '../src/configuration/agent-settings.service.js';
+import { BusinessRuleService } from '../src/configuration/business-rule.service.js';
+import { KnowledgeService } from '../src/configuration/knowledge.service.js';
+import { CustomerAgentService } from '../src/customer-agent/customer-agent.service.js';
 import { CustomerService } from '../src/customers/customer.service.js';
 import { DatabaseService } from '../src/database/database.service.js';
+import { InventoryService } from '../src/inventory/inventory.service.js';
+import { ProductService } from '../src/products/product.service.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -23,6 +29,7 @@ describeWithDatabase('customer and conversation services', () => {
   let database: DatabaseService;
   let customers: CustomerService;
   let conversations: ConversationService;
+  let customerAgent: CustomerAgentService;
 
   beforeAll(async () => {
     process.env.DATABASE_URL = databaseUrl;
@@ -48,9 +55,20 @@ describeWithDatabase('customer and conversation services', () => {
     database = new DatabaseService();
     customers = new CustomerService(database);
     conversations = new ConversationService(database);
+    customerAgent = new CustomerAgentService(
+      database,
+      conversations,
+      new ProductService(database),
+      new InventoryService(database),
+      new BusinessRuleService(database),
+      new KnowledgeService(database),
+      new AgentSettingsService(database),
+    );
   });
 
   afterAll(async () => {
+    await admin`delete from ai_tool_calls where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from ai_runs where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from conversation_transitions where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from messages where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from conversations where tenant_id in (${tenantA}, ${tenantB})`;
@@ -183,6 +201,83 @@ describeWithDatabase('customer and conversation services', () => {
 
     await expect(
       conversations.get(identity, 'cross-tenant-read', tenantB, created.id),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('persists a grounded static agent run and replays the same customer turn once', async () => {
+    const [customer] = await customers.list(identity, 'agent-customer-list', tenantA, {
+      status: 'active',
+      q: 'Customer Integration',
+      limit: 50,
+    });
+    if (!customer) throw new Error('Customer fixture not found.');
+    const conversation = await conversations.create(identity, 'agent-conversation', tenantA, {
+      customerId: customer.id,
+      channel: 'internal',
+      externalThreadId: 'agent-static-thread',
+      status: 'bot',
+      subject: 'Agent integration',
+      productId: null,
+      draftOrderId: null,
+      orderId: null,
+      initialMessage: {
+        direction: 'inbound',
+        senderType: 'customer',
+        senderId: null,
+        externalId: 'agent-greeting-inbound',
+        content: 'السلام عليكم',
+        metadata: {},
+      },
+    });
+    const inbound = conversation.messages[0];
+    if (!inbound) throw new Error('Inbound fixture message not found.');
+
+    const reply = await customerAgent.reply(
+      identity,
+      'agent-reply-correlation',
+      tenantA,
+      conversation.id,
+      { messageId: inbound.id },
+    );
+    const replay = await customerAgent.reply(
+      identity,
+      'agent-reply-replay-correlation',
+      tenantA,
+      conversation.id,
+      { messageId: inbound.id },
+    );
+
+    expect(reply.status).toBe('reply');
+    expect(reply.route).toBe('static');
+    expect(reply.replayed).toBe(false);
+    expect(replay).toEqual({ ...reply, replayed: true });
+    const [trace] = await admin<
+      {
+        provider: string;
+        model: string;
+        outcome: string;
+        toolCallCount: number;
+      }[]
+    >`
+      select
+        run.provider, run.model, run.outcome::text,
+        count(tool.id)::int as "toolCallCount"
+      from ai_runs as run
+      left join ai_tool_calls as tool
+        on tool.tenant_id = run.tenant_id and tool.run_id = run.id
+      where run.tenant_id = ${tenantA} and run.id = ${reply.runId}
+      group by run.id
+    `;
+    expect(trace).toEqual({
+      provider: 'deterministic',
+      model: 'static-reply-v1',
+      outcome: 'completed',
+      toolCallCount: 0,
+    });
+    await expect(
+      customerAgent.reply(identity, 'agent-cross-tenant', tenantB, conversation.id, {
+        messageId: inbound.id,
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

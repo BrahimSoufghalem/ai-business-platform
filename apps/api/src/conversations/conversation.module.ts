@@ -7,5 +7,6 @@ import { ConversationService } from './conversation.service.js';
   imports: [DatabaseModule],
   controllers: [ConversationController],
   providers: [ConversationService],
+  exports: [ConversationService],
 })
 export class ConversationModule {}

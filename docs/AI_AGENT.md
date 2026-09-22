@@ -60,6 +60,8 @@ Command Tools تنفذ authorization وvalidation والمعاملة؛ مواف�
 
 التنفيذ المرجعي لهذه الحدود موثق في [AI Gateway](AI_GATEWAY.md): Provider adapters محايدة، Routing حسب المهمة/التكلفة/السرعة، Tool allow-lists، Structured outputs، Budgets، Circuit breaker وTelemetry منقحة.
 
+تنفيذ Grounded Responses موجود في [Grounded Customer Agent](CUSTOMER_AGENT.md): Router حتمي، أدوات قراءة فعلية، ذاكرة محدودة، ربط Claims بنتائج Tool، Endpoint داخلي ومجموعة تقييم عربية/جزائرية.
+
 ## عقد الإعدادات والمعرفة المنشورة
 
 - يقرأ الوكيل Business Rules وKnowledge وAgent Settings من الإصدار `published` فقط.
