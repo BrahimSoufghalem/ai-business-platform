@@ -32,17 +32,17 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 
 ## خريطة الوثائق
 
-| الوثيقة | الغرض |
-|---|---|
-| [Product brief](docs/PRODUCT_BRIEF.md) | الملخص الأصلي ومتطلبات صاحب الفكرة |
-| [Product scope](docs/PRODUCT_SCOPE.md) | النطاق، المستخدمون، المتطلبات ومعايير النجاح |
-| [Architecture](docs/ARCHITECTURE.md) | التصميم المقترح وحدود النظام والتدفقات |
-| [Data model](docs/DATA_MODEL.md) | الكيانات والعلاقات والثوابت الحرجة |
-| [AI agent design](docs/AI_AGENT.md) | السياق الديناميكي، الأدوات، الحماية والتقييم |
-| [Roadmap](docs/ROADMAP.md) | خطة تنفيذ MVP على مراحل ومسار حرج |
-| [Security & privacy](docs/SECURITY.md) | ضوابط العزل والوصول والأسرار والتدقيق |
-| [ADR-0001](docs/adr/0001-proposed-stack.md) | Stack مقترح يحتاج اعتمادًا قبل بدء التنفيذ |
-| [Contributing](CONTRIBUTING.md) | طريقة العمل وجودة الـPRs |
+| الوثيقة                                     | الغرض                                        |
+| ------------------------------------------- | -------------------------------------------- |
+| [Product brief](docs/PRODUCT_BRIEF.md)      | الملخص الأصلي ومتطلبات صاحب الفكرة           |
+| [Product scope](docs/PRODUCT_SCOPE.md)      | النطاق، المستخدمون، المتطلبات ومعايير النجاح |
+| [Architecture](docs/ARCHITECTURE.md)        | التصميم المقترح وحدود النظام والتدفقات       |
+| [Data model](docs/DATA_MODEL.md)            | الكيانات والعلاقات والثوابت الحرجة           |
+| [AI agent design](docs/AI_AGENT.md)         | السياق الديناميكي، الأدوات، الحماية والتقييم |
+| [Roadmap](docs/ROADMAP.md)                  | خطة تنفيذ MVP على مراحل ومسار حرج            |
+| [Security & privacy](docs/SECURITY.md)      | ضوابط العزل والوصول والأسرار والتدقيق        |
+| [ADR-0001](docs/adr/0001-proposed-stack.md) | Stack مقترح يحتاج اعتمادًا قبل بدء التنفيذ   |
+| [Contributing](CONTRIBUTING.md)             | طريقة العمل وجودة الـPRs                     |
 
 ## الشكل المقترح للمستودع بعد اعتماد الـStack
 
@@ -66,3 +66,26 @@ packages/
 2. تنفيذ Issues حسب ترتيبها ومسارها الحرج.
 3. عدم دمج أي Write Path قبل وجود tenant check، authorization، validation وaudit event.
 4. إطلاق Pilot على 2–3 متاجر ببيانات اختبار، ثم متجر حقيقي واحد، قبل توسيع القنوات.
+
+## Development status
+
+Implementation started on the foundation layer. The first external Pilot channel is **Instagram**, but live integration remains blocked until tenancy, conversations, orders, and handoff are ready.
+
+### Local quick start
+
+```bash
+cp .env.example .env
+pnpm install
+docker compose up -d postgres
+pnpm db:migrate
+pnpm dev
+```
+
+See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-first-pilot-channel.md).
+
+### Foundation security gates
+
+- OIDC verification is provider-neutral and validates issuer, audience, expiry and signature.
+- Tenant-scoped transactions set both the candidate tenant and verified identity subject.
+- PostgreSQL RLS verifies active membership; supplying another tenant ID is insufficient.
+- GitHub CI applies migrations to a real PostgreSQL service and runs cross-tenant integration tests.

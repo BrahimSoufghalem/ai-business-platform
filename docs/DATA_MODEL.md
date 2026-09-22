@@ -10,35 +10,35 @@
 
 ## الكيانات
 
-| الكيان | أهم الحقول | ملاحظات |
-|---|---|---|
-| tenants | id, name, locale, timezone, status | المتجر/المستأجر |
-| users | id, identity_provider_id | هوية عالمية |
-| memberships | tenant_id, user_id, role, status | مصدر الصلاحيات |
-| product_types | tenant_id, name, slug, template_key | نوع مخصص أو مستنسخ من Template |
-| attribute_definitions | product_type_id, key, label, data_type, required, variant_axis | تعريف قابل للتخصيص |
-| products | tenant_id, product_type_id, code, name, description, status, custom_attributes | الحقول المشتركة + القيم الديناميكية |
-| product_variants | product_id, sku, attributes, price_override, status | توليفة قابلة للبيع |
-| product_media | product_id, object_key, sort_order | صور وملفات |
-| content_product_links | tenant_id, channel, external_content_id, product_id | Reel/Post/Product mapping |
-| inventory_locations | tenant_id, name | موقع واحد أولًا مع دعم التوسع |
-| inventory_movements | tenant_id, variant_id, type, quantity, reference_type/id | Ledger لا يعدّل مباشرة |
-| inventory_balances | tenant_id, variant_id, on_hand, reserved | Projection ذري |
-| customers | tenant_id, name, phone, email, metadata | Dedup داخل المتجر |
-| customer_addresses | customer_id, label, address fields | Snapshot لاحقًا داخل الطلب |
-| conversations | tenant_id, customer_id, channel, status, assigned_to | سياق المحادثة |
-| messages | conversation_id, direction, sender_type, content, external_id | Idempotent ingest |
-| draft_orders | tenant_id, customer_id, conversation_id, status, expires_at | قابل للتعديل قبل التأكيد |
-| draft_order_items | draft_order_id, variant_id, quantity, quoted_price | اقتراح الطلب |
-| orders | tenant_id, customer_id, number, status, totals, address_snapshot | سجل مؤكد |
-| order_items | order_id, variant_id, product_snapshot, unit_price, quantity | Snapshot تاريخي |
-| business_rules | tenant_id, key, value, version, status | قواعد Typed ومنشورة |
-| knowledge_entries | tenant_id, title, content, status, version | FAQ ومعرفة المتجر |
-| ai_runs | tenant_id, conversation_id, model, prompt_version, usage, outcome | مراقبة وتكلفة |
-| ai_tool_calls | ai_run_id, tool, safe_input, result_status, latency | لا تحفظ أسرارًا |
-| handoffs | conversation_id, reason, summary, assigned_to, resolved_at | مسار الموظف |
-| audit_events | tenant_id, actor, action, entity, before/after metadata | Append-only |
-| outbox_events | tenant_id, type, payload, published_at | ضمان الأحداث |
+| الكيان                | أهم الحقول                                                                     | ملاحظات                             |
+| --------------------- | ------------------------------------------------------------------------------ | ----------------------------------- |
+| tenants               | id, name, locale, timezone, status                                             | المتجر/المستأجر                     |
+| users                 | id, identity_provider_id                                                       | هوية عالمية                         |
+| memberships           | tenant_id, user_id, role, status                                               | مصدر الصلاحيات                      |
+| product_types         | tenant_id, name, slug, template_key                                            | نوع مخصص أو مستنسخ من Template      |
+| attribute_definitions | product_type_id, key, label, data_type, required, variant_axis                 | تعريف قابل للتخصيص                  |
+| products              | tenant_id, product_type_id, code, name, description, status, custom_attributes | الحقول المشتركة + القيم الديناميكية |
+| product_variants      | product_id, sku, attributes, price_override, status                            | توليفة قابلة للبيع                  |
+| product_media         | product_id, object_key, sort_order                                             | صور وملفات                          |
+| content_product_links | tenant_id, channel, external_content_id, product_id                            | Reel/Post/Product mapping           |
+| inventory_locations   | tenant_id, name                                                                | موقع واحد أولًا مع دعم التوسع       |
+| inventory_movements   | tenant_id, variant_id, type, quantity, reference_type/id                       | Ledger لا يعدّل مباشرة              |
+| inventory_balances    | tenant_id, variant_id, on_hand, reserved                                       | Projection ذري                      |
+| customers             | tenant_id, name, phone, email, metadata                                        | Dedup داخل المتجر                   |
+| customer_addresses    | customer_id, label, address fields                                             | Snapshot لاحقًا داخل الطلب          |
+| conversations         | tenant_id, customer_id, channel, status, assigned_to                           | سياق المحادثة                       |
+| messages              | conversation_id, direction, sender_type, content, external_id                  | Idempotent ingest                   |
+| draft_orders          | tenant_id, customer_id, conversation_id, status, expires_at                    | قابل للتعديل قبل التأكيد            |
+| draft_order_items     | draft_order_id, variant_id, quantity, quoted_price                             | اقتراح الطلب                        |
+| orders                | tenant_id, customer_id, number, status, totals, address_snapshot               | سجل مؤكد                            |
+| order_items           | order_id, variant_id, product_snapshot, unit_price, quantity                   | Snapshot تاريخي                     |
+| business_rules        | tenant_id, key, value, version, status                                         | قواعد Typed ومنشورة                 |
+| knowledge_entries     | tenant_id, title, content, status, version                                     | FAQ ومعرفة المتجر                   |
+| ai_runs               | tenant_id, conversation_id, model, prompt_version, usage, outcome              | مراقبة وتكلفة                       |
+| ai_tool_calls         | ai_run_id, tool, safe_input, result_status, latency                            | لا تحفظ أسرارًا                     |
+| handoffs              | conversation_id, reason, summary, assigned_to, resolved_at                     | مسار الموظف                         |
+| audit_events          | tenant_id, actor, action, entity, before/after metadata                        | Append-only                         |
+| outbox_events         | tenant_id, type, payload, published_at                                         | ضمان الأحداث                        |
 
 ## علاقات مختصرة
 

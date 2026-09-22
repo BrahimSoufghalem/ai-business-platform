@@ -25,18 +25,18 @@ flowchart LR
 
 ## حدود Modules
 
-| Module | المسؤولية | لا يملكه |
-|---|---|---|
-| Identity & Tenancy | المستخدمون، العضويات، المتجر والسياق | كتالوج أو طلبات |
-| Catalog | Product Types، Attributes، Products، Variants، Content Links | الرصيد الفعلي |
-| Inventory | الحركات، الحجز، التحرير والرصد | أسعار التفاوض |
-| Orders | Drafts، Orders، البنود والحالات | تنفيذ AI |
-| Customers | الملفات، العناوين والملاحظات | قناة الرسائل |
-| Conversations | Threads، Messages، assignment وhandoff | قواعد السعر |
-| Rules & Knowledge | سياسات المتجر وFAQ/Knowledge | تعديل الطلب مباشرة |
-| AI Orchestration | السياق، Routing، Tools وGuardrails | الحقيقة التجارية |
-| Analytics | Read models وقياسات التشغيل | Write paths الأساسية |
-| Integrations | Webhooks وmapping للقنوات | منطق Domain |
+| Module             | المسؤولية                                                    | لا يملكه             |
+| ------------------ | ------------------------------------------------------------ | -------------------- |
+| Identity & Tenancy | المستخدمون، العضويات، المتجر والسياق                         | كتالوج أو طلبات      |
+| Catalog            | Product Types، Attributes، Products، Variants، Content Links | الرصيد الفعلي        |
+| Inventory          | الحركات، الحجز، التحرير والرصد                               | أسعار التفاوض        |
+| Orders             | Drafts، Orders، البنود والحالات                              | تنفيذ AI             |
+| Customers          | الملفات، العناوين والملاحظات                                 | قناة الرسائل         |
+| Conversations      | Threads، Messages، assignment وhandoff                       | قواعد السعر          |
+| Rules & Knowledge  | سياسات المتجر وFAQ/Knowledge                                 | تعديل الطلب مباشرة   |
+| AI Orchestration   | السياق، Routing، Tools وGuardrails                           | الحقيقة التجارية     |
+| Analytics          | Read models وقياسات التشغيل                                  | Write paths الأساسية |
+| Integrations       | Webhooks وmapping للقنوات                                    | منطق Domain          |
 
 ## تدفق رسالة العميل
 

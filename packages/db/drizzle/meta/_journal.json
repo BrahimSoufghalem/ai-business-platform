@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790020010977,
+      "tag": "0000_mature_baron_zemo",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790020018296,
+      "tag": "0001_tenant-rls",
+      "breakpoints": true
+    }
+  ]
+}
