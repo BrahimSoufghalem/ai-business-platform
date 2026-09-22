@@ -119,6 +119,9 @@ importers:
 
   packages/db:
     dependencies:
+      '@ai-business/ai-gateway':
+        specifier: workspace:*
+        version: link:../ai-gateway
       '@ai-business/domain':
         specifier: workspace:*
         version: link:../domain

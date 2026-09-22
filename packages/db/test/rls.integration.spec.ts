@@ -17,6 +17,7 @@ import {
   confirmDraftOrder,
   transitionOrder,
 } from '../src/order-commands.js';
+import { persistAiRunTrace } from '../src/ai-run-telemetry.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -39,6 +40,8 @@ const ruleVersionA = 'bcbcbcbc-bcbc-4bcb-8bcb-bcbcbcbcbcbc';
 const ruleDraftB = 'cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd';
 const knowledgeEntryA = 'dededede-dede-4ded-8ded-dededededede';
 const knowledgeVersionA = 'efefefef-efef-4efe-8efe-efefefefefef';
+const aiRunA = '12121212-1212-4212-8212-121212121212';
+const aiToolCallA = '13131313-1313-4313-8313-131313131313';
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
 const provisioningUser = 'identity-user-provisioning-test';
@@ -119,7 +122,8 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
            customers, customer_contacts, customer_addresses, customer_notes,
            conversations, messages, conversation_transitions,
            business_rule_sets, business_rule_versions, knowledge_entries,
-           knowledge_versions, agent_settings_versions, pricing_decisions
+           knowledge_versions, agent_settings_versions, pricing_decisions,
+           ai_runs, ai_tool_calls
         TO ai_business_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE
         ON inventory_movements
@@ -210,6 +214,8 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   afterAll(async () => {
+    await admin`delete from ai_tool_calls where tenant_id = ${tenantA}`;
+    await admin`delete from ai_runs where tenant_id = ${tenantA}`;
     await admin`delete from pricing_decisions where tenant_id = ${tenantA}`;
     await admin`delete from business_rule_versions where tenant_id = ${tenantA}`;
     await admin`delete from business_rule_sets where tenant_id = ${tenantA}`;
@@ -1382,6 +1388,139 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       (tx) => tx<{ id: string }[]>`select id::text from business_rule_sets`,
     );
     expect(hiddenFromTenantB).toEqual([]);
+  });
+
+  it('persists only redacted append-only AI and tool traces inside the tenant', async () => {
+    await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      persistAiRunTrace(tx, {
+        id: aiRunA,
+        tenantId: tenantA,
+        conversationId: conversationA,
+        correlationId: 'ai-run-integration',
+        task: 'compose',
+        intent: 'pricing',
+        promptVersion: 'reply-v1',
+        routingVersion: 'routing-v1',
+        provider: 'primary',
+        model: 'fast-model',
+        modelVersion: '2026-09-22',
+        outcome: 'completed',
+        handoffReason: null,
+        latencyMs: 125,
+        usage: { inputTokens: 40, outputTokens: 12 },
+        estimatedCostUsd: 0.000013,
+        attemptCount: 1,
+        fallbackUsed: false,
+        safeInput: {
+          apiKey: 'never-store-this',
+          message: 'Ask customer@example.test about the price.',
+        },
+        safeOutput: { reply: 'The current price is 100.00 DZD.' },
+        attempts: [
+          {
+            provider: 'primary',
+            model: 'fast-model',
+            attempt: 1,
+            status: 'succeeded',
+            errorCode: null,
+            latencyMs: 125,
+            inputTokens: 40,
+            outputTokens: 12,
+            estimatedCostUsd: 0.000013,
+          },
+        ],
+        toolCalls: [
+          {
+            id: aiToolCallA,
+            providerCallId: 'provider-call-1',
+            name: 'get_effective_price',
+            kind: 'read',
+            status: 'succeeded',
+            latencyMs: 4,
+            safeInput: { authorization: 'Bearer secret-value' },
+            safeOutput: { price: '100.00' },
+            errorCode: null,
+          },
+        ],
+        createdAt: '2026-09-22T16:00:00.000Z',
+      }),
+    );
+    const [trace] = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<
+          {
+            provider: string;
+            model: string;
+            promptVersion: string;
+            routingVersion: string;
+            latencyMs: number;
+            inputTokens: number;
+            outputTokens: number;
+            safeApiKey: string;
+            safeMessage: string;
+            safeAuthorization: string;
+            toolCount: number;
+          }[]
+        >`
+          select
+            run.provider, run.model, run.prompt_version as "promptVersion",
+            run.routing_version as "routingVersion", run.latency_ms as "latencyMs",
+            run.input_tokens as "inputTokens", run.output_tokens as "outputTokens",
+            run.safe_input->>'apiKey' as "safeApiKey",
+            run.safe_input->>'message' as "safeMessage",
+            tool.safe_input->>'authorization' as "safeAuthorization",
+            (
+              select count(*)::int from ai_tool_calls
+              where tenant_id = ${tenantA} and run_id = run.id
+            ) as "toolCount"
+          from ai_runs as run
+          join ai_tool_calls as tool
+            on tool.tenant_id = run.tenant_id and tool.run_id = run.id
+          where run.tenant_id = ${tenantA} and run.id = ${aiRunA}
+        `,
+    );
+    expect(trace).toEqual({
+      provider: 'primary',
+      model: 'fast-model',
+      promptVersion: 'reply-v1',
+      routingVersion: 'routing-v1',
+      latencyMs: 125,
+      inputTokens: 40,
+      outputTokens: 12,
+      safeApiKey: '[REDACTED]',
+      safeMessage: 'Ask [REDACTED] about the price.',
+      safeAuthorization: '[REDACTED]',
+      toolCount: 1,
+    });
+    expect(
+      await withRuntimeTenant(
+        context(tenantB, userB),
+        (tx) => tx<{ id: string }[]>`select id::text from ai_runs`,
+      ),
+    ).toEqual([]);
+    expect(
+      await withRuntimeTenant(
+        context(tenantA, userA),
+        (tx) =>
+          tx<{ id: string }[]>`
+            update ai_runs set model = 'tampered'
+            where tenant_id = ${tenantA} and id = ${aiRunA}
+            returning id::text
+          `,
+      ),
+    ).toEqual([]);
+    expect(
+      await withRuntimeTenant(
+        context(tenantA, userA),
+        (tx) =>
+          tx<{ id: string }[]>`
+            delete from ai_tool_calls
+            where tenant_id = ${tenantA} and id = ${aiToolCallA}
+            returning id::text
+          `,
+      ),
+    ).toEqual([]);
   });
 
   it('rejects a cross-tenant audit write even when the candidate tenant is supplied', async () => {

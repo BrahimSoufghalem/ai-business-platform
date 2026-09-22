@@ -58,6 +58,8 @@ Command Tools تنفذ authorization وvalidation والمعاملة؛ مواف�
 
 كل Route يسجل السبب، النموذج، Token usage، latency والتكلفة المقدرة.
 
+التنفيذ المرجعي لهذه الحدود موثق في [AI Gateway](AI_GATEWAY.md): Provider adapters محايدة، Routing حسب المهمة/التكلفة/السرعة، Tool allow-lists، Structured outputs، Budgets، Circuit breaker وTelemetry منقحة.
+
 ## عقد الإعدادات والمعرفة المنشورة
 
 - يقرأ الوكيل Business Rules وKnowledge وAgent Settings من الإصدار `published` فقط.
