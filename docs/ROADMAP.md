@@ -95,13 +95,16 @@ Dashboard يتطور بالتوازي فوق نفس Modules، ولا يسبق ص
 
 ## المرحلة 6 — Hardening وPilot (الأسبوع 12)
 
+**حالة التنفيذ:** اكتملت الضوابط البرمجية الأساسية. تفعيل Pilot الحقيقي ينتظر الأدلة التشغيلية والتوقيع البشري على Go/No-Go.
+
 **المخرجات**
 
-- Seed/import محدود لبيانات متجر Pilot.
-- مراقبة، alerting، backup/restore وrunbooks.
-- مراجعة صلاحيات، privacy، retention وsecret scanning.
-- Dashboard KPI أولي: الطلبات، التحويل، handoff، latency، AI cost.
-- تدريب المستخدم وجولة Pilot مع feedback log.
+- [x] Seed/import محدود وidempotent لبيانات متجر Pilot.
+- [x] مراقبة، alerting، correlation trace، backup/restore وrunbooks.
+- [x] مراجعة صلاحيات، rate limits، dependency/secret scanning وprivacy checklist.
+- [x] Dashboard KPI: الطلبات، المبيعات، المخزون، handoff، latency وAI cost.
+- [x] بوابات تقييم/red-team، دليل تدريب وfeedback log.
+- [ ] تنفيذ التدريب والتجربة التشغيلية وتوقيع Go/No-Go على بيئة Pilot.
 
 **بوابة الخروج**
 

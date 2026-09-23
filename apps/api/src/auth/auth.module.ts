@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { createOidcVerifier, type IdentityVerifier } from '@ai-business/auth';
+import { RateLimitGuard } from '../observability/rate-limit.guard.js';
+import { RequestLoggingInterceptor } from '../observability/request-logging.interceptor.js';
 import { IDENTITY_VERIFIER } from './auth.constants.js';
 import { BearerAuthGuard } from './bearer-auth.guard.js';
 
@@ -29,6 +31,8 @@ function createEnvironmentIdentityVerifier(): IdentityVerifier {
   providers: [
     { provide: IDENTITY_VERIFIER, useFactory: createEnvironmentIdentityVerifier },
     { provide: APP_GUARD, useClass: BearerAuthGuard },
+    { provide: APP_GUARD, useClass: RateLimitGuard },
+    { provide: APP_INTERCEPTOR, useClass: RequestLoggingInterceptor },
   ],
   exports: [IDENTITY_VERIFIER],
 })

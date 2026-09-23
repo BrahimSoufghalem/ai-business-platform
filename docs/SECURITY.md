@@ -70,10 +70,11 @@
 
 ## قبل Pilot حقيقي
 
-- Threat modeling لتدفقات sign-in، webhook، AI tool calls، order confirm وexports.
-- Dependency وcontainer scanning.
-- Backup restore test.
-- مراجعة Data retention وطلب الحذف/التصدير.
-- Rate limits وabuse controls.
-- Incident runbook ومسؤول واضح للاستجابة.
-- مراجعة شروط مزود AI ومكان معالجة البيانات.
+- أكمل [Pilot Security Review](PILOT_SECURITY_REVIEW.md) لتدفقات sign-in وAI tools وتأكيد الطلب والنسخ.
+- شغّل `pnpm pilot:gates` على commit المرشح ولا تقبل ثغرات production ذات مستوى high/critical.
+- نفّذ backup/restore drill وسجّل RPO/RTO الفعليين.
+- راجع Data retention وطلب الحذف/التصدير.
+- تحقق من rate limits وabuse controls؛ المحدد داخل الذاكرة يعني نسخة API واحدة فقط.
+- عيّن مسؤول incident وبديلًا ونفّذ تمرين tabletop من [Pilot Operations](PILOT_OPERATIONS.md).
+- راجع شروط مزود AI ومكان معالجة البيانات وعدم استخدامها للتدريب.
+- لا تدخل بيانات حقيقية قبل توقيع [Pilot Go/No-Go](PILOT_GO_NO_GO.md).
