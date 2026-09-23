@@ -6,5 +6,6 @@ export * from './catalog/product-catalog.js';
 export * from './orders/order-lifecycle.js';
 export * from './customers/customer-contact.js';
 export * from './conversations/conversation-lifecycle.js';
+export * from './conversations/handoff.js';
 export * from './rules/pricing-policy.js';
 export * from './configuration/agent-settings.js';

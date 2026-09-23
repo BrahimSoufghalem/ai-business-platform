@@ -42,6 +42,7 @@
 Command Tools تنفذ authorization وvalidation والمعاملة؛ موافقة النموذج وحدها لا تكفي.
 
 التنفيذ الفعلي لمسار الطلب حتمي ولا يستدعي النموذج. راجع [Conversation-to-Order](CONVERSATION_ORDER_FLOW.md).
+`request_human_handoff` يحفظ سببًا منظمًا وملخصًا منقحًا ويوقف البوت مرة واحدة؛ دورة الملكية موثقة في [Human Handoff](HUMAN_HANDOFF.md).
 
 ## سياسة التفاوض
 
@@ -85,6 +86,8 @@ Command Tools تنفذ authorization وvalidation والمعاملة؛ مواف�
 - شكوى، استرجاع، طلب خاص أو لغة مسيئة/حساسة وفق السياسة.
 - طلب صريح من العميل.
 - محاولة Prompt Injection أو طلب كشف تعليمات/بيانات داخلية.
+
+التحويل الناتج ينتقل إلى `needs_human`. بعد `claim` تصبح المحادثة `human` ولا يحق الرد إلا للموظف المعيّن. يمكنه `release` لإعادتها للطابور أو إرجاعها إلى `bot` بعد حل الاستثناء.
 
 ## الحماية
 

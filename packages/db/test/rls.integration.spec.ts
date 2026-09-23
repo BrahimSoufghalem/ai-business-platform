@@ -42,6 +42,9 @@ const knowledgeEntryA = 'dededede-dede-4ded-8ded-dededededede';
 const knowledgeVersionA = 'efefefef-efef-4efe-8efe-efefefefefef';
 const aiRunA = '12121212-1212-4212-8212-121212121212';
 const aiToolCallA = '13131313-1313-4313-8313-131313131313';
+const handoffRunA = '14141414-1414-4414-8414-141414141414';
+const handoffSourceMessageA = '15151515-1515-4515-8515-151515151515';
+const handoffA = '16161616-1616-4616-8616-161616161616';
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
 const provisioningUser = 'identity-user-provisioning-test';
@@ -123,7 +126,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
            conversations, messages, conversation_transitions,
            business_rule_sets, business_rule_versions, knowledge_entries,
            knowledge_versions, agent_settings_versions, pricing_decisions,
-           ai_runs, ai_tool_calls
+           ai_runs, ai_tool_calls, handoffs
         TO ai_business_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE
         ON inventory_movements
@@ -214,6 +217,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   afterAll(async () => {
+    await admin`delete from handoffs where tenant_id = ${tenantA}`;
     await admin`delete from ai_tool_calls where tenant_id = ${tenantA}`;
     await admin`delete from ai_runs where tenant_id = ${tenantA}`;
     await admin`delete from pricing_decisions where tenant_id = ${tenantA}`;
@@ -1064,6 +1068,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
   });
 
   it('deduplicates customer contacts and isolates an idempotent conversation inbox', async () => {
+    await admin`delete from handoffs where tenant_id = ${tenantA}`;
     await admin`delete from conversation_transitions where tenant_id = ${tenantA}`;
     await admin`delete from messages where tenant_id = ${tenantA}`;
     await admin`delete from conversations where tenant_id = ${tenantA}`;
@@ -1106,10 +1111,10 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       `;
       await tx`
         insert into messages (
-          tenant_id, conversation_id, direction, sender_type, external_id,
+          id, tenant_id, conversation_id, direction, sender_type, external_id,
           fingerprint, content
         ) values (
-          ${tenantA}, ${conversationA}, 'inbound', 'customer',
+          ${handoffSourceMessageA}, ${tenantA}, ${conversationA}, 'inbound', 'customer',
           'external-message-1', 'fingerprint-1', 'Do you have this product?'
         )
       `;
@@ -1521,6 +1526,125 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
           `,
       ),
     ).toEqual([]);
+  });
+
+  it('isolates handoffs and protects their redacted source context', async () => {
+    await withRuntimeTenant(context(tenantA, userA), (tx) =>
+      persistAiRunTrace(tx, {
+        id: handoffRunA,
+        tenantId: tenantA,
+        conversationId: conversationA,
+        correlationId: 'handoff-run-integration',
+        task: 'compose',
+        intent: 'handoff',
+        promptVersion: 'reply-v1',
+        routingVersion: null,
+        provider: null,
+        model: null,
+        modelVersion: null,
+        outcome: 'handoff',
+        handoffReason: 'safety_fallback',
+        latencyMs: 20,
+        usage: { inputTokens: 12, outputTokens: 0 },
+        estimatedCostUsd: 0,
+        attemptCount: 0,
+        fallbackUsed: false,
+        safeInput: { message: 'Please connect me with a person.' },
+        safeOutput: { handoffReason: 'safety_fallback' },
+        attempts: [],
+        toolCalls: [],
+        createdAt: '2026-09-22T16:05:00.000Z',
+      }),
+    );
+
+    await withRuntimeTenant(context(tenantA, userA), async (tx) => {
+      await tx`
+        insert into handoffs (
+          id, tenant_id, conversation_id, source_message_id, source_run_id,
+          reason, intent, summary, idempotency_key
+        ) values (
+          ${handoffA}, ${tenantA}, ${conversationA}, ${handoffSourceMessageA},
+          ${handoffRunA}, 'explicit_customer_request', 'handoff',
+          ${tx.json({
+            customer: { name: 'Test Customer', contactHint: '***0001' },
+            latestRequest: 'Please connect me with a person.',
+            collected: { phone: true, address: true },
+          })},
+          'handoff-rls-test'
+        )
+      `;
+    });
+
+    const [visible] = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<
+          {
+            id: string;
+            reason: string;
+            status: string;
+            latestRequest: string;
+          }[]
+        >`
+          select
+            id::text,
+            reason::text,
+            status::text,
+            summary->>'latestRequest' as "latestRequest"
+          from handoffs
+          where tenant_id = ${tenantA} and id = ${handoffA}
+        `,
+    );
+    expect(visible).toEqual({
+      id: handoffA,
+      reason: 'explicit_customer_request',
+      status: 'pending',
+      latestRequest: 'Please connect me with a person.',
+    });
+
+    expect(
+      await withRuntimeTenant(
+        context(tenantB, userB),
+        (tx) => tx<{ id: string }[]>`select id::text from handoffs`,
+      ),
+    ).toEqual([]);
+
+    await expect(
+      withRuntimeTenant(
+        context(tenantA, userA),
+        (tx) =>
+          tx`
+            update handoffs
+            set summary = '{"latestRequest":"tampered"}'::jsonb
+            where tenant_id = ${tenantA} and id = ${handoffA}
+          `,
+      ),
+    ).rejects.toThrow('handoff source and summary are immutable');
+
+    const [claimed] = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<{ status: string; assignedToUserId: string; firstClaimed: boolean }[]>`
+          update handoffs
+          set
+            status = 'active',
+            assigned_to_user_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            first_claimed_at = now(),
+            claimed_at = now(),
+            version = version + 1,
+            updated_at = now()
+          where tenant_id = ${tenantA} and id = ${handoffA}
+          returning
+            status::text,
+            assigned_to_user_id::text as "assignedToUserId",
+            first_claimed_at is not null as "firstClaimed"
+        `,
+    );
+    expect(claimed).toEqual({
+      status: 'active',
+      assignedToUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      firstClaimed: true,
+    });
   });
 
   it('rejects a cross-tenant audit write even when the candidate tenant is supplied', async () => {

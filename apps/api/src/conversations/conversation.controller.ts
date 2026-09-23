@@ -19,6 +19,7 @@ import {
   conversationEntityIdSchema,
   conversationSearchSchema,
   createConversationSchema,
+  releaseConversationSchema,
   transitionConversationSchema,
   updateConversationLinksSchema,
 } from './conversation.schemas.js';
@@ -70,6 +71,19 @@ export class ConversationController {
     );
   }
 
+  @Get('handoff-metrics')
+  getHandoffMetrics(
+    @CurrentIdentity() identity: VerifiedIdentity,
+    @CorrelationId() correlationId: string,
+    @Param('tenantId') candidateTenantId: string,
+  ) {
+    return this.conversations.getHandoffMetrics(
+      identity,
+      correlationId,
+      tenantId(candidateTenantId),
+    );
+  }
+
   @Get(':conversationId')
   get(
     @CurrentIdentity() identity: VerifiedIdentity,
@@ -116,6 +130,23 @@ export class ConversationController {
       tenantId(candidateTenantId),
       conversationId(candidateConversationId),
       parseWithSchema(claimConversationSchema, body),
+    );
+  }
+
+  @Post(':conversationId/release')
+  release(
+    @CurrentIdentity() identity: VerifiedIdentity,
+    @CorrelationId() correlationId: string,
+    @Param('tenantId') candidateTenantId: string,
+    @Param('conversationId') candidateConversationId: string,
+    @Body() body: unknown,
+  ) {
+    return this.conversations.release(
+      identity,
+      correlationId,
+      tenantId(candidateTenantId),
+      conversationId(candidateConversationId),
+      parseWithSchema(releaseConversationSchema, body),
     );
   }
 

@@ -114,6 +114,22 @@ export const aiIntent = pgEnum('ai_intent', [
 export const aiRunOutcome = pgEnum('ai_run_outcome', ['completed', 'handoff']);
 export const aiToolKind = pgEnum('ai_tool_kind', ['read', 'command']);
 export const aiToolCallStatus = pgEnum('ai_tool_call_status', ['succeeded', 'rejected', 'failed']);
+export const handoffReason = pgEnum('handoff_reason', [
+  'explicit_customer_request',
+  'low_confidence',
+  'safety_risk',
+  'tool_failure',
+  'pricing_policy',
+  'order_exception',
+  'unsupported_request',
+  'manual',
+]);
+export const handoffStatus = pgEnum('handoff_status', ['pending', 'active', 'resolved']);
+export const handoffResolution = pgEnum('handoff_resolution', [
+  'completed',
+  'returned_to_bot',
+  'conversation_closed',
+]);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -1403,6 +1419,109 @@ export const aiToolCalls = pgTable(
         (${table.status} = 'succeeded' and ${table.errorCode} is null)
         or
         (${table.status} in ('rejected', 'failed') and ${table.errorCode} is not null)
+      )`,
+    ),
+  ],
+);
+
+export const handoffs = pgTable(
+  'handoffs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    sourceMessageId: uuid('source_message_id').notNull(),
+    customerNoticeMessageId: uuid('customer_notice_message_id'),
+    sourceRunId: uuid('source_run_id').notNull(),
+    reason: handoffReason('reason').notNull(),
+    status: handoffStatus('status').notNull().default('pending'),
+    resolution: handoffResolution('resolution'),
+    intent: aiIntent('intent').notNull(),
+    summary: jsonb('summary').$type<Record<string, unknown>>().notNull(),
+    assignedToUserId: uuid('assigned_to_user_id'),
+    idempotencyKey: text('idempotency_key').notNull(),
+    version: integer('version').notNull().default(1),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    firstClaimedAt: timestamp('first_claimed_at', { withTimezone: true }),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    releasedAt: timestamp('released_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+      name: 'handoffs_tenant_conversation_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.tenantId, table.sourceMessageId],
+      foreignColumns: [messages.tenantId, messages.id],
+      name: 'handoffs_tenant_source_message_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.customerNoticeMessageId],
+      foreignColumns: [messages.tenantId, messages.id],
+      name: 'handoffs_tenant_notice_message_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.sourceRunId],
+      foreignColumns: [aiRuns.tenantId, aiRuns.id],
+      name: 'handoffs_tenant_source_run_fk',
+    }).onDelete('restrict'),
+    foreignKey({
+      columns: [table.tenantId, table.assignedToUserId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+      name: 'handoffs_tenant_assignee_fk',
+    }).onDelete('restrict'),
+    uniqueIndex('handoffs_tenant_id_id_uq').on(table.tenantId, table.id),
+    uniqueIndex('handoffs_tenant_idempotency_uq').on(table.tenantId, table.idempotencyKey),
+    uniqueIndex('handoffs_tenant_notice_message_uq').on(
+      table.tenantId,
+      table.customerNoticeMessageId,
+    ),
+    uniqueIndex('handoffs_one_open_per_conversation_uq')
+      .on(table.tenantId, table.conversationId)
+      .where(sql`${table.status} in ('pending', 'active')`),
+    index('handoffs_tenant_status_requested_idx').on(
+      table.tenantId,
+      table.status,
+      table.requestedAt,
+    ),
+    index('handoffs_tenant_conversation_requested_idx').on(
+      table.tenantId,
+      table.conversationId,
+      table.requestedAt,
+    ),
+    check('handoffs_version_positive', sql`${table.version} > 0`),
+    check('handoffs_idempotency_not_blank', sql`length(trim(${table.idempotencyKey})) > 0`),
+    check('handoffs_summary_object', sql`jsonb_typeof(${table.summary}) = 'object'`),
+    check(
+      'handoffs_status_shape',
+      sql`(
+        (
+          ${table.status} = 'pending'
+          and ${table.assignedToUserId} is null
+          and ${table.claimedAt} is null
+          and ${table.resolvedAt} is null
+          and ${table.resolution} is null
+        )
+        or
+        (
+          ${table.status} = 'active'
+          and ${table.assignedToUserId} is not null
+          and ${table.claimedAt} is not null
+          and ${table.resolvedAt} is null
+          and ${table.resolution} is null
+        )
+        or
+        (
+          ${table.status} = 'resolved'
+          and ${table.claimedAt} is null
+          and ${table.resolvedAt} is not null
+          and ${table.resolution} is not null
+        )
       )`,
     ),
   ],

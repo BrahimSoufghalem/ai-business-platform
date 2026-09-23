@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -7,7 +7,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { VerifiedIdentity } from '@ai-business/auth';
+import { redactAiTelemetry, type AiIntent } from '@ai-business/ai-gateway';
+import type { CustomerAgentReply } from '@ai-business/customer-agent';
 import {
+  type HandoffReasonCode,
+  type HandoffResolutionCode,
+  type HandoffStatus,
   InvalidConversationTransitionError,
   assertConversationTransition,
   maskCustomerContact,
@@ -23,6 +28,7 @@ import type {
   ConversationMessageInput,
   ConversationSearchInput,
   CreateConversationInput,
+  ReleaseConversationInput,
   TransitionConversationInput,
   UpdateConversationLinksInput,
 } from './conversation.schemas.js';
@@ -44,6 +50,61 @@ export interface ConversationMessageView {
   readonly replayed?: boolean;
 }
 
+export interface HandoffContextSummary {
+  readonly schemaVersion: 1;
+  readonly intent: AiIntent;
+  readonly reason: HandoffReasonCode;
+  readonly customerRequest: string;
+  readonly customer: {
+    readonly name: string;
+    readonly contactHint: string | null;
+  };
+  readonly product: {
+    readonly id: string;
+    readonly name: string;
+  } | null;
+  readonly collectedData: {
+    readonly draftOrderId: string | null;
+    readonly draftStatus: string | null;
+    readonly hasCustomerPhone: boolean;
+    readonly hasShippingAddress: boolean;
+    readonly itemCount: number;
+    readonly orderId: string | null;
+    readonly orderNumber: string | null;
+  };
+}
+
+export interface HandoffView {
+  readonly id: string;
+  readonly reason: HandoffReasonCode;
+  readonly status: HandoffStatus;
+  readonly resolution: HandoffResolutionCode | null;
+  readonly intent: AiIntent;
+  readonly summary: HandoffContextSummary;
+  readonly sourceMessageId: string;
+  readonly sourceRunId: string;
+  readonly customerNoticeMessageId: string | null;
+  readonly assignedToUserId: string | null;
+  readonly assignedToMe: boolean;
+  readonly version: number;
+  readonly requestedAt: string;
+  readonly firstClaimedAt: string | null;
+  readonly claimedAt: string | null;
+  readonly releasedAt: string | null;
+  readonly resolvedAt: string | null;
+  readonly currentWaitSeconds: number;
+  readonly firstResponseSeconds: number | null;
+  readonly resolutionSeconds: number | null;
+}
+
+export interface HandoffMetricsView {
+  readonly pending: number;
+  readonly active: number;
+  readonly resolved: number;
+  readonly averageFirstResponseSeconds: number | null;
+  readonly averageResolutionSeconds: number | null;
+}
+
 export interface ConversationSummaryView {
   readonly id: string;
   readonly customer: {
@@ -55,6 +116,7 @@ export interface ConversationSummaryView {
   readonly status: ConversationStatus;
   readonly assignedToUserId: string | null;
   readonly assignedToMe: boolean;
+  readonly activeHandoff: HandoffView | null;
   readonly subject: string | null;
   readonly productId: string | null;
   readonly draftOrderId: string | null;
@@ -69,6 +131,7 @@ export interface ConversationSummaryView {
 export interface ConversationView extends ConversationSummaryView {
   readonly externalThreadId: string | null;
   readonly messages: readonly ConversationMessageView[];
+  readonly handoffs: readonly HandoffView[];
   readonly transitions: readonly {
     id: string;
     fromStatus: ConversationStatus | null;
@@ -77,6 +140,45 @@ export interface ConversationView extends ConversationSummaryView {
     reason: string | null;
     createdAt: string;
   }[];
+}
+
+interface HandoffRow {
+  readonly id: string;
+  readonly reason: HandoffReasonCode;
+  readonly status: HandoffStatus;
+  readonly resolution: HandoffResolutionCode | null;
+  readonly intent: AiIntent;
+  readonly summary: HandoffContextSummary;
+  readonly sourceMessageId: string;
+  readonly sourceRunId: string;
+  readonly customerNoticeMessageId: string | null;
+  readonly assignedToUserId: string | null;
+  readonly version: number;
+  readonly requestedAt: Date;
+  readonly firstClaimedAt: Date | null;
+  readonly claimedAt: Date | null;
+  readonly releasedAt: Date | null;
+  readonly resolvedAt: Date | null;
+  readonly currentWaitSeconds: number;
+  readonly firstResponseSeconds: number | null;
+  readonly resolutionSeconds: number | null;
+}
+
+export interface RequestHandoffInput {
+  readonly sourceMessageId: string;
+  readonly sourceRunId: string;
+  readonly reason: HandoffReasonCode;
+  readonly intent: AiIntent;
+  readonly customerNotice: string;
+  readonly idempotencyKey: string;
+  readonly agentReply: CustomerAgentReply;
+}
+
+export interface RequestHandoffResult {
+  readonly handoff: HandoffView;
+  readonly customerMessage: ConversationMessageView;
+  readonly agentReply: CustomerAgentReply;
+  readonly toolCallId: string;
 }
 
 function jsonInput(value: unknown): JsonInput {
@@ -112,6 +214,24 @@ function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
 
+function boundedSummaryText(value: string): string {
+  const redacted = redactAiTelemetry(value);
+  const safe = typeof redacted === 'string' ? redacted : '[redacted]';
+  return safe.replace(/\s+/gu, ' ').trim().slice(0, 500);
+}
+
+function mapHandoff(row: HandoffRow, currentUserId: string): HandoffView {
+  return {
+    ...row,
+    assignedToMe: row.assignedToUserId === currentUserId,
+    requestedAt: row.requestedAt.toISOString(),
+    firstClaimedAt: row.firstClaimedAt?.toISOString() ?? null,
+    claimedAt: row.claimedAt?.toISOString() ?? null,
+    releasedAt: row.releasedAt?.toISOString() ?? null,
+    resolvedAt: row.resolvedAt?.toISOString() ?? null,
+  };
+}
+
 @Injectable()
 export class ConversationService {
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
@@ -122,6 +242,13 @@ export class ConversationService {
     }
     if (input.direction === 'outbound' && input.senderType === 'customer') {
       throw new BadRequestException('Outbound messages cannot be sent by the customer.');
+    }
+    if (
+      input.direction === 'outbound' &&
+      input.senderType !== 'agent' &&
+      input.senderType !== 'bot'
+    ) {
+      throw new BadRequestException('Outbound messages must be sent by the bot or an agent.');
     }
     if (
       input.direction === 'internal' &&
@@ -138,6 +265,40 @@ export class ConversationService {
     `;
     if (!user?.id) throw new NotFoundException('Active tenant member not found.');
     return user.id;
+  }
+
+  private async assertMessageWriteAllowed(
+    transaction: TenantTransaction,
+    tenantId: string,
+    conversationId: string,
+    input: ConversationMessageInput,
+  ): Promise<void> {
+    if (input.direction !== 'outbound') return;
+    const [conversation] = await transaction<
+      {
+        status: ConversationStatus;
+        assignedToUserId: string | null;
+      }[]
+    >`
+      select
+        status::text,
+        assigned_to_user_id::text as "assignedToUserId"
+      from conversations
+      where tenant_id = ${tenantId} and id = ${conversationId}
+      limit 1
+    `;
+    if (!conversation) throw new NotFoundException('Conversation not found.');
+    if (input.senderType === 'bot' && conversation.status !== 'bot') {
+      throw new ConflictException('The bot cannot reply while a human handoff is active.');
+    }
+    if (input.senderType === 'agent') {
+      const currentUserId = await this.currentUserId(transaction, tenantId);
+      if (conversation.status !== 'human' || conversation.assignedToUserId !== currentUserId) {
+        throw new ConflictException(
+          'An agent must claim the conversation before sending a customer reply.',
+        );
+      }
+    }
   }
 
   private async validateLinks(
@@ -234,6 +395,7 @@ export class ConversationService {
         return { ...message, createdAt: message.createdAt.toISOString(), replayed: true };
       }
     }
+    await this.assertMessageWriteAllowed(transaction, tenantId, conversationId, input);
     const senderId =
       input.senderId ??
       (input.senderType === 'agent' || input.senderType === 'bot' ? identity.subject : null);
@@ -287,6 +449,25 @@ export class ConversationService {
         channel: ConversationChannel;
         status: ConversationStatus;
         assignedToUserId: string | null;
+        handoffId: string | null;
+        handoffReason: HandoffReasonCode | null;
+        handoffStatus: HandoffStatus | null;
+        handoffResolution: HandoffResolutionCode | null;
+        handoffIntent: AiIntent | null;
+        handoffSummary: HandoffContextSummary | null;
+        handoffSourceMessageId: string | null;
+        handoffSourceRunId: string | null;
+        handoffCustomerNoticeMessageId: string | null;
+        handoffAssignedToUserId: string | null;
+        handoffVersion: number | null;
+        handoffRequestedAt: Date | null;
+        handoffFirstClaimedAt: Date | null;
+        handoffClaimedAt: Date | null;
+        handoffReleasedAt: Date | null;
+        handoffResolvedAt: Date | null;
+        handoffCurrentWaitSeconds: number | null;
+        handoffFirstResponseSeconds: number | null;
+        handoffResolutionSeconds: number | null;
         subject: string | null;
         productId: string | null;
         draftOrderId: string | null;
@@ -306,6 +487,43 @@ export class ConversationService {
         contact.normalized_value as "normalizedContact",
         conversation.channel::text, conversation.status::text,
         conversation.assigned_to_user_id::text as "assignedToUserId",
+        active_handoff.id::text as "handoffId",
+        active_handoff.reason::text as "handoffReason",
+        active_handoff.status::text as "handoffStatus",
+        active_handoff.resolution::text as "handoffResolution",
+        active_handoff.intent::text as "handoffIntent",
+        active_handoff.summary as "handoffSummary",
+        active_handoff.source_message_id::text as "handoffSourceMessageId",
+        active_handoff.source_run_id::text as "handoffSourceRunId",
+        active_handoff.customer_notice_message_id::text as "handoffCustomerNoticeMessageId",
+        active_handoff.assigned_to_user_id::text as "handoffAssignedToUserId",
+        active_handoff.version as "handoffVersion",
+        active_handoff.requested_at as "handoffRequestedAt",
+        active_handoff.first_claimed_at as "handoffFirstClaimedAt",
+        active_handoff.claimed_at as "handoffClaimedAt",
+        active_handoff.released_at as "handoffReleasedAt",
+        active_handoff.resolved_at as "handoffResolvedAt",
+        case
+          when active_handoff.status = 'pending'
+          then greatest(
+            0,
+            floor(extract(epoch from (
+              now() - coalesce(active_handoff.released_at, active_handoff.requested_at)
+            )))
+          )::int
+          else 0
+        end as "handoffCurrentWaitSeconds",
+        case
+          when active_handoff.first_claimed_at is not null
+          then greatest(
+            0,
+            floor(extract(epoch from (
+              active_handoff.first_claimed_at - active_handoff.requested_at
+            )))
+          )::int
+          else null
+        end as "handoffFirstResponseSeconds",
+        null::int as "handoffResolutionSeconds",
         conversation.subject, conversation.product_id::text as "productId",
         conversation.draft_order_id::text as "draftOrderId",
         conversation.order_id::text as "orderId", conversation.version,
@@ -333,6 +551,15 @@ export class ConversationService {
         order by created_at desc, id desc
         limit 1
       ) as last_message on true
+      left join lateral (
+        select handoff.*
+        from handoffs as handoff
+        where handoff.tenant_id = conversation.tenant_id
+          and handoff.conversation_id = conversation.id
+          and handoff.status in ('pending', 'active')
+        order by handoff.requested_at desc, handoff.id desc
+        limit 1
+      ) as active_handoff on true
       where conversation.tenant_id = ${tenantId}
         and conversation.id = ${conversationId}
       limit 1
@@ -352,6 +579,41 @@ export class ConversationService {
       status: row.status,
       assignedToUserId: row.assignedToUserId,
       assignedToMe: row.assignedToUserId === currentUserId,
+      activeHandoff:
+        row.handoffId &&
+        row.handoffReason &&
+        row.handoffStatus &&
+        row.handoffIntent &&
+        row.handoffSummary &&
+        row.handoffSourceMessageId &&
+        row.handoffSourceRunId &&
+        row.handoffVersion !== null &&
+        row.handoffRequestedAt
+          ? mapHandoff(
+              {
+                id: row.handoffId,
+                reason: row.handoffReason,
+                status: row.handoffStatus,
+                resolution: row.handoffResolution,
+                intent: row.handoffIntent,
+                summary: row.handoffSummary,
+                sourceMessageId: row.handoffSourceMessageId,
+                sourceRunId: row.handoffSourceRunId,
+                customerNoticeMessageId: row.handoffCustomerNoticeMessageId,
+                assignedToUserId: row.handoffAssignedToUserId,
+                version: row.handoffVersion,
+                requestedAt: row.handoffRequestedAt,
+                firstClaimedAt: row.handoffFirstClaimedAt,
+                claimedAt: row.handoffClaimedAt,
+                releasedAt: row.handoffReleasedAt,
+                resolvedAt: row.handoffResolvedAt,
+                currentWaitSeconds: row.handoffCurrentWaitSeconds ?? 0,
+                firstResponseSeconds: row.handoffFirstResponseSeconds,
+                resolutionSeconds: row.handoffResolutionSeconds,
+              },
+              currentUserId,
+            )
+          : null,
       subject: row.subject,
       productId: row.productId,
       draftOrderId: row.draftOrderId,
@@ -362,6 +624,56 @@ export class ConversationService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  private async loadHandoffs(
+    transaction: TenantTransaction,
+    tenantId: string,
+    conversationId: string,
+    currentUserId: string,
+  ): Promise<HandoffView[]> {
+    const rows = await transaction<HandoffRow[]>`
+      select
+        id::text, reason::text, status::text, resolution::text,
+        intent::text, summary,
+        source_message_id::text as "sourceMessageId",
+        source_run_id::text as "sourceRunId",
+        customer_notice_message_id::text as "customerNoticeMessageId",
+        assigned_to_user_id::text as "assignedToUserId",
+        version, requested_at as "requestedAt",
+        first_claimed_at as "firstClaimedAt",
+        claimed_at as "claimedAt", released_at as "releasedAt",
+        resolved_at as "resolvedAt",
+        case
+          when status = 'pending'
+          then greatest(
+            0,
+            floor(extract(epoch from (now() - coalesce(released_at, requested_at))))
+          )::int
+          else 0
+        end as "currentWaitSeconds",
+        case
+          when first_claimed_at is not null
+          then greatest(
+            0,
+            floor(extract(epoch from (first_claimed_at - requested_at)))
+          )::int
+          else null
+        end as "firstResponseSeconds",
+        case
+          when resolved_at is not null
+          then greatest(
+            0,
+            floor(extract(epoch from (resolved_at - requested_at)))
+          )::int
+          else null
+        end as "resolutionSeconds"
+      from handoffs
+      where tenant_id = ${tenantId} and conversation_id = ${conversationId}
+      order by requested_at desc, id desc
+      limit 100
+    `;
+    return rows.map((row) => mapHandoff(row, currentUserId));
   }
 
   private async loadConversation(
@@ -417,6 +729,7 @@ export class ConversationService {
       where tenant_id = ${tenantId} and conversation_id = ${conversationId}
       order by created_at, id
     `;
+    const handoffs = await this.loadHandoffs(transaction, tenantId, conversationId, currentUserId);
     return {
       ...summary,
       externalThreadId: core.externalThreadId,
@@ -424,10 +737,134 @@ export class ConversationService {
         ...message,
         createdAt: message.createdAt.toISOString(),
       })),
+      handoffs,
       transitions: transitionRows.map((transition) => ({
         ...transition,
         createdAt: transition.createdAt.toISOString(),
       })),
+    };
+  }
+
+  private async buildHandoffSummary(
+    transaction: TenantTransaction,
+    tenantId: string,
+    conversationId: string,
+    sourceMessageId: string,
+    intent: AiIntent,
+    reason: HandoffReasonCode,
+  ): Promise<HandoffContextSummary> {
+    const [row] = await transaction<
+      {
+        customerName: string;
+        contactType: CustomerContactType | null;
+        normalizedContact: string | null;
+        sourceContent: string;
+        sourceDirection: MessageDirection;
+        sourceSenderType: MessageSenderType;
+        productId: string | null;
+        productName: string | null;
+        draftOrderId: string | null;
+        draftStatus: string | null;
+        customerPhone: string | null;
+        shippingAddress: Record<string, unknown> | null;
+        itemCount: number;
+        orderId: string | null;
+        orderNumber: string | null;
+      }[]
+    >`
+      select
+        customer.name as "customerName",
+        contact.type::text as "contactType",
+        contact.normalized_value as "normalizedContact",
+        source_message.content as "sourceContent",
+        source_message.direction::text as "sourceDirection",
+        source_message.sender_type::text as "sourceSenderType",
+        coalesce(conversation.product_id, draft_item.product_id)::text as "productId",
+        coalesce(product.name, draft_item.product_name_snapshot) as "productName",
+        conversation.draft_order_id::text as "draftOrderId",
+        draft.status::text as "draftStatus",
+        draft.customer_phone as "customerPhone",
+        draft.shipping_address as "shippingAddress",
+        coalesce(draft_items.item_count, 0)::int as "itemCount",
+        conversation.order_id::text as "orderId",
+        orders.number as "orderNumber"
+      from conversations as conversation
+      join customers as customer
+        on customer.tenant_id = conversation.tenant_id
+        and customer.id = conversation.customer_id
+      join messages as source_message
+        on source_message.tenant_id = conversation.tenant_id
+        and source_message.conversation_id = conversation.id
+        and source_message.id = ${sourceMessageId}
+      left join lateral (
+        select type, normalized_value
+        from customer_contacts
+        where tenant_id = conversation.tenant_id
+          and customer_id = conversation.customer_id
+        order by is_primary desc, created_at, id
+        limit 1
+      ) as contact on true
+      left join draft_orders as draft
+        on draft.tenant_id = conversation.tenant_id
+        and draft.id = conversation.draft_order_id
+      left join lateral (
+        select count(*)::int as item_count
+        from draft_order_items
+        where tenant_id = conversation.tenant_id
+          and draft_order_id = conversation.draft_order_id
+      ) as draft_items on true
+      left join lateral (
+        select product_id, product_name_snapshot
+        from draft_order_items
+        where tenant_id = conversation.tenant_id
+          and draft_order_id = conversation.draft_order_id
+        order by created_at, id
+        limit 1
+      ) as draft_item on true
+      left join products as product
+        on product.tenant_id = conversation.tenant_id
+        and product.id = coalesce(conversation.product_id, draft_item.product_id)
+      left join orders
+        on orders.tenant_id = conversation.tenant_id
+        and orders.id = conversation.order_id
+      where conversation.tenant_id = ${tenantId}
+        and conversation.id = ${conversationId}
+      limit 1
+    `;
+    if (!row) throw new NotFoundException('Conversation or source message not found.');
+    if (row.sourceDirection !== 'inbound' || row.sourceSenderType !== 'customer') {
+      throw new BadRequestException('A handoff must originate from an inbound customer message.');
+    }
+    const address = row.shippingAddress;
+    const hasShippingAddress =
+      address !== null &&
+      typeof address.line1 === 'string' &&
+      address.line1.trim().length > 0 &&
+      typeof address.city === 'string' &&
+      address.city.trim().length > 0;
+    return {
+      schemaVersion: 1,
+      intent,
+      reason,
+      customerRequest: boundedSummaryText(row.sourceContent),
+      customer: {
+        name: row.customerName,
+        contactHint:
+          row.contactType && row.normalizedContact
+            ? maskCustomerContact(row.contactType, row.normalizedContact)
+            : null,
+      },
+      product:
+        row.productId && row.productName ? { id: row.productId, name: row.productName } : null,
+      collectedData: {
+        draftOrderId: row.draftOrderId,
+        draftStatus: row.draftStatus,
+        hasCustomerPhone: Boolean(row.customerPhone),
+        hasShippingAddress,
+        itemCount: row.itemCount,
+        orderId: row.orderId,
+        orderNumber: row.orderNumber,
+      },
     };
   }
 
@@ -635,6 +1072,311 @@ export class ConversationService {
     });
   }
 
+  async getHandoffMetrics(
+    identity: VerifiedIdentity,
+    correlationId: string,
+    candidateTenantId: string,
+  ): Promise<HandoffMetricsView> {
+    const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
+    return withTenantTransaction(this.database.client, context, async (transaction) => {
+      await authorizeTenantPermission(transaction, context.tenantId, 'conversations:read');
+      const [metrics] = await transaction<
+        {
+          pending: number;
+          active: number;
+          resolved: number;
+          averageFirstResponseSeconds: number | null;
+          averageResolutionSeconds: number | null;
+        }[]
+      >`
+        select
+          count(*) filter (where status = 'pending')::int as pending,
+          count(*) filter (where status = 'active')::int as active,
+          count(*) filter (where status = 'resolved')::int as resolved,
+          round(
+            avg(extract(epoch from (first_claimed_at - requested_at)))
+            filter (where first_claimed_at is not null)
+          )::int as "averageFirstResponseSeconds",
+          round(
+            avg(extract(epoch from (resolved_at - requested_at)))
+            filter (where resolved_at is not null)
+          )::int as "averageResolutionSeconds"
+        from handoffs
+        where tenant_id = ${context.tenantId}
+      `;
+      return (
+        metrics ?? {
+          pending: 0,
+          active: 0,
+          resolved: 0,
+          averageFirstResponseSeconds: null,
+          averageResolutionSeconds: null,
+        }
+      );
+    });
+  }
+
+  async requestHandoff(
+    identity: VerifiedIdentity,
+    correlationId: string,
+    candidateTenantId: string,
+    conversationId: string,
+    input: RequestHandoffInput,
+  ): Promise<RequestHandoffResult> {
+    const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
+    return withTenantTransaction(this.database.client, context, async (transaction) => {
+      await authorizeTenantPermission(transaction, context.tenantId, 'conversations:manage');
+      await transaction`
+        select pg_advisory_xact_lock(
+          hashtextextended(
+            ${`${context.tenantId}:handoff:${input.idempotencyKey}`},
+            0::bigint
+          )
+        )
+      `;
+      const currentUserId = await this.currentUserId(transaction, context.tenantId);
+      const [existing] = await transaction<
+        {
+          id: string;
+          customerNoticeMessageId: string | null;
+        }[]
+      >`
+        select
+          id::text,
+          customer_notice_message_id::text as "customerNoticeMessageId"
+        from handoffs
+        where tenant_id = ${context.tenantId}
+          and idempotency_key = ${input.idempotencyKey}
+        limit 1
+      `;
+      if (existing) {
+        const handoff = (
+          await this.loadHandoffs(transaction, context.tenantId, conversationId, currentUserId)
+        ).find((item) => item.id === existing.id);
+        if (!handoff || !existing.customerNoticeMessageId) {
+          throw new ConflictException('Stored handoff is incomplete.');
+        }
+        const [customerMessage] = await transaction<
+          {
+            id: string;
+            direction: MessageDirection;
+            senderType: MessageSenderType;
+            senderId: string | null;
+            externalId: string | null;
+            content: string;
+            metadata: Record<string, unknown>;
+            createdAt: Date;
+          }[]
+        >`
+          select
+            id::text, direction::text, sender_type::text as "senderType",
+            sender_id as "senderId", external_id as "externalId",
+            content, metadata, created_at as "createdAt"
+          from messages
+          where tenant_id = ${context.tenantId}
+            and id = ${existing.customerNoticeMessageId}
+          limit 1
+        `;
+        const [toolCall] = await transaction<{ id: string }[]>`
+          select id::text
+          from ai_tool_calls
+          where tenant_id = ${context.tenantId}
+            and run_id = ${input.sourceRunId}
+            and name = 'request_human_handoff'
+          order by created_at, id
+          limit 1
+        `;
+        if (!customerMessage || !toolCall) {
+          throw new ConflictException('Stored handoff notification is incomplete.');
+        }
+        const agentReply: CustomerAgentReply = {
+          ...input.agentReply,
+          handoffId: handoff.id,
+          toolCallIds: [...new Set([...input.agentReply.toolCallIds, toolCall.id])],
+        };
+        return {
+          handoff,
+          customerMessage: {
+            ...customerMessage,
+            createdAt: customerMessage.createdAt.toISOString(),
+            replayed: true,
+          },
+          agentReply,
+          toolCallId: toolCall.id,
+        };
+      }
+
+      const [conversation] = await transaction<
+        {
+          status: ConversationStatus;
+          version: number;
+        }[]
+      >`
+        select status::text, version
+        from conversations
+        where tenant_id = ${context.tenantId} and id = ${conversationId}
+        limit 1
+        for update
+      `;
+      if (!conversation) throw new NotFoundException('Conversation not found.');
+      if (conversation.status !== 'bot') {
+        throw new ConflictException('The conversation is already owned by the human queue.');
+      }
+      const [run] = await transaction<{ id: string }[]>`
+        select id::text
+        from ai_runs
+        where tenant_id = ${context.tenantId}
+          and id = ${input.sourceRunId}
+          and conversation_id = ${conversationId}
+          and outcome = 'handoff'
+        limit 1
+      `;
+      if (!run) throw new ConflictException('A completed handoff trace is required.');
+      const summary = await this.buildHandoffSummary(
+        transaction,
+        context.tenantId,
+        conversationId,
+        input.sourceMessageId,
+        input.intent,
+        input.reason,
+      );
+      const [created] = await transaction<{ id: string }[]>`
+        insert into handoffs (
+          tenant_id, conversation_id, source_message_id, source_run_id,
+          reason, status, intent, summary, idempotency_key
+        ) values (
+          ${context.tenantId}, ${conversationId}, ${input.sourceMessageId},
+          ${input.sourceRunId}, ${input.reason}, 'pending', ${input.intent},
+          ${transaction.json(jsonInput(summary))}, ${input.idempotencyKey}
+        )
+        returning id::text
+      `;
+      if (!created) throw new Error('Handoff insert returned no ID.');
+      const toolCallId = randomUUID();
+      const agentReply: CustomerAgentReply = {
+        ...input.agentReply,
+        handoffId: created.id,
+        toolCallIds: [...new Set([...input.agentReply.toolCallIds, toolCallId])],
+      };
+      const customerMessage = await this.appendMessageInTransaction(
+        transaction,
+        identity,
+        context.tenantId,
+        conversationId,
+        {
+          direction: 'outbound',
+          senderType: 'bot',
+          senderId: 'customer-agent',
+          externalId: `agent-reply:${input.sourceMessageId}`,
+          content: input.customerNotice,
+          metadata: {
+            kind: 'customer_agent_reply',
+            inReplyToMessageId: input.sourceMessageId,
+            agentReply,
+            handoffId: created.id,
+          },
+        },
+      );
+      await transaction`
+        update handoffs
+        set customer_notice_message_id = ${customerMessage.id}, updated_at = now()
+        where tenant_id = ${context.tenantId} and id = ${created.id}
+      `;
+      await transaction`
+        update conversations
+        set
+          status = 'needs_human',
+          assigned_to_user_id = null,
+          version = version + 1,
+          closed_at = null,
+          updated_at = now()
+        where tenant_id = ${context.tenantId} and id = ${conversationId}
+      `;
+      await transaction`
+        insert into conversation_transitions (
+          tenant_id, conversation_id, from_status, to_status, actor_id, reason
+        ) values (
+          ${context.tenantId}, ${conversationId}, 'bot', 'needs_human',
+          ${identity.subject}, ${input.reason}
+        )
+      `;
+      await this.appendMessageInTransaction(
+        transaction,
+        identity,
+        context.tenantId,
+        conversationId,
+        {
+          direction: 'internal',
+          senderType: 'system',
+          senderId: null,
+          externalId: `handoff-notice:${created.id}`,
+          content: `Human handoff requested: ${input.reason}`,
+          metadata: {
+            kind: 'handoff_notification',
+            handoffId: created.id,
+            reason: input.reason,
+            summary,
+          },
+        },
+      );
+      await transaction`
+        insert into ai_tool_calls (
+          id, tenant_id, run_id, provider_call_id, name, kind, status,
+          latency_ms, safe_input, safe_output, error_code
+        ) values (
+          ${toolCallId}, ${context.tenantId}, ${input.sourceRunId},
+          ${`application:${input.sourceMessageId}:handoff`},
+          'request_human_handoff', 'command', 'succeeded', 0,
+          ${transaction.json(
+            jsonInput({
+              conversationId,
+              sourceMessageId: input.sourceMessageId,
+              reason: input.reason,
+              intent: input.intent,
+            }),
+          )},
+          ${transaction.json(
+            jsonInput({
+              handoffId: created.id,
+              status: 'pending',
+              conversationStatus: 'needs_human',
+            }),
+          )},
+          null
+        )
+      `;
+      await this.auditTransition(
+        transaction,
+        identity,
+        context.tenantId,
+        correlationId,
+        conversationId,
+        'bot',
+        'needs_human',
+      );
+      await transaction`
+        insert into audit_events (
+          tenant_id, actor_type, actor_id, action, entity_type,
+          entity_id, correlation_id, metadata
+        ) values (
+          ${context.tenantId}, 'system', 'customer-agent', 'handoff.requested',
+          'handoff', ${created.id}, ${correlationId},
+          ${transaction.json({
+            conversationId,
+            sourceMessageId: input.sourceMessageId,
+            reason: input.reason,
+            intent: input.intent,
+          })}
+        )
+      `;
+      const handoff = (
+        await this.loadHandoffs(transaction, context.tenantId, conversationId, currentUserId)
+      ).find((item) => item.id === created.id);
+      if (!handoff) throw new Error('Created handoff could not be loaded.');
+      return { handoff, customerMessage, agentReply, toolCallId };
+    });
+  }
+
   async appendMessage(
     identity: VerifiedIdentity,
     correlationId: string,
@@ -733,6 +1475,20 @@ export class ConversationService {
             version = version + 1, closed_at = null, updated_at = now()
           where tenant_id = ${context.tenantId} and id = ${conversationId}
         `;
+        const [claimedHandoff] = await transaction<{ id: string }[]>`
+          update handoffs
+          set
+            status = 'active',
+            assigned_to_user_id = ${currentUserId},
+            first_claimed_at = coalesce(first_claimed_at, now()),
+            claimed_at = now(),
+            version = version + 1,
+            updated_at = now()
+          where tenant_id = ${context.tenantId}
+            and conversation_id = ${conversationId}
+            and status = 'pending'
+          returning id::text
+        `;
         await transaction`
           insert into conversation_transitions (
             tenant_id, conversation_id, from_status, to_status, actor_id, reason
@@ -750,6 +1506,18 @@ export class ConversationService {
           current.status,
           'human',
         );
+        if (claimedHandoff) {
+          await transaction`
+            insert into audit_events (
+              tenant_id, actor_type, actor_id, action, entity_type,
+              entity_id, correlation_id, metadata
+            ) values (
+              ${context.tenantId}, 'user', ${identity.subject}, 'handoff.claimed',
+              'handoff', ${claimedHandoff.id}, ${correlationId},
+              ${transaction.json({ conversationId })}
+            )
+          `;
+        }
       }
       const result = await this.loadConversation(
         transaction,
@@ -758,6 +1526,127 @@ export class ConversationService {
         currentUserId,
       );
       if (!result) throw new Error('Claimed conversation could not be loaded.');
+      return result;
+    });
+  }
+
+  async release(
+    identity: VerifiedIdentity,
+    correlationId: string,
+    candidateTenantId: string,
+    conversationId: string,
+    input: ReleaseConversationInput,
+  ): Promise<ConversationView> {
+    const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
+    return withTenantTransaction(this.database.client, context, async (transaction) => {
+      await authorizeTenantPermission(transaction, context.tenantId, 'conversations:manage');
+      const currentUserId = await this.currentUserId(transaction, context.tenantId);
+      const [current] = await transaction<
+        {
+          status: ConversationStatus;
+          assignedToUserId: string | null;
+          version: number;
+        }[]
+      >`
+        select
+          status::text,
+          assigned_to_user_id::text as "assignedToUserId",
+          version
+        from conversations
+        where tenant_id = ${context.tenantId} and id = ${conversationId}
+        limit 1
+        for update
+      `;
+      if (!current) throw new NotFoundException('Conversation not found.');
+      if (current.version !== input.expectedVersion) {
+        throw new ConflictException({
+          message: 'Conversation changed; reload before releasing it.',
+          currentVersion: current.version,
+        });
+      }
+      if (current.status !== 'human' || current.assignedToUserId !== currentUserId) {
+        throw new ConflictException('Only the assigned agent can release an active conversation.');
+      }
+      await transaction`
+        update conversations
+        set
+          status = 'needs_human',
+          assigned_to_user_id = null,
+          version = version + 1,
+          updated_at = now()
+        where tenant_id = ${context.tenantId} and id = ${conversationId}
+      `;
+      const [releasedHandoff] = await transaction<{ id: string }[]>`
+        update handoffs
+        set
+          status = 'pending',
+          assigned_to_user_id = null,
+          claimed_at = null,
+          released_at = now(),
+          version = version + 1,
+          updated_at = now()
+        where tenant_id = ${context.tenantId}
+          and conversation_id = ${conversationId}
+          and status = 'active'
+          and assigned_to_user_id = ${currentUserId}
+        returning id::text
+      `;
+      await transaction`
+        insert into conversation_transitions (
+          tenant_id, conversation_id, from_status, to_status, actor_id, reason
+        ) values (
+          ${context.tenantId}, ${conversationId}, 'human', 'needs_human',
+          ${identity.subject}, ${input.reason}
+        )
+      `;
+      await this.appendMessageInTransaction(
+        transaction,
+        identity,
+        context.tenantId,
+        conversationId,
+        {
+          direction: 'internal',
+          senderType: 'system',
+          senderId: null,
+          externalId: releasedHandoff
+            ? `handoff-release:${releasedHandoff.id}:${current.version}`
+            : `conversation-release:${conversationId}:${current.version}`,
+          content: 'Conversation released to the human queue.',
+          metadata: {
+            kind: 'handoff_released',
+            handoffId: releasedHandoff?.id ?? null,
+            reason: input.reason,
+          },
+        },
+      );
+      await this.auditTransition(
+        transaction,
+        identity,
+        context.tenantId,
+        correlationId,
+        conversationId,
+        'human',
+        'needs_human',
+      );
+      if (releasedHandoff) {
+        await transaction`
+          insert into audit_events (
+            tenant_id, actor_type, actor_id, action, entity_type,
+            entity_id, correlation_id, metadata
+          ) values (
+            ${context.tenantId}, 'user', ${identity.subject}, 'handoff.released',
+            'handoff', ${releasedHandoff.id}, ${correlationId},
+            ${transaction.json({ conversationId, reason: input.reason })}
+          )
+        `;
+      }
+      const result = await this.loadConversation(
+        transaction,
+        context.tenantId,
+        conversationId,
+        currentUserId,
+      );
+      if (!result) throw new Error('Released conversation could not be loaded.');
       return result;
     });
   }
@@ -826,6 +1715,13 @@ export class ConversationService {
       ) {
         throw new ConflictException('Conversation is assigned to another member.');
       }
+      if (
+        current.status === 'human' &&
+        current.assignedToUserId &&
+        current.assignedToUserId !== currentUserId
+      ) {
+        throw new ConflictException('Only the assigned agent can change an active conversation.');
+      }
       const assignee = input.targetStatus === 'human' ? currentUserId : null;
       await transaction`
         update conversations
@@ -836,6 +1732,59 @@ export class ConversationService {
           updated_at = now()
         where tenant_id = ${context.tenantId} and id = ${conversationId}
       `;
+      let changedHandoff: { id: string } | undefined;
+      let handoffAction: 'handoff.claimed' | 'handoff.released' | 'handoff.resolved' | null = null;
+      if (input.targetStatus === 'human') {
+        [changedHandoff] = await transaction<{ id: string }[]>`
+          update handoffs
+          set
+            status = 'active',
+            assigned_to_user_id = ${currentUserId},
+            first_claimed_at = coalesce(first_claimed_at, now()),
+            claimed_at = now(),
+            version = version + 1,
+            updated_at = now()
+          where tenant_id = ${context.tenantId}
+            and conversation_id = ${conversationId}
+            and status = 'pending'
+          returning id::text
+        `;
+        handoffAction = changedHandoff ? 'handoff.claimed' : null;
+      } else if (input.targetStatus === 'needs_human' && current.status === 'human') {
+        [changedHandoff] = await transaction<{ id: string }[]>`
+          update handoffs
+          set
+            status = 'pending',
+            assigned_to_user_id = null,
+            claimed_at = null,
+            released_at = now(),
+            version = version + 1,
+            updated_at = now()
+          where tenant_id = ${context.tenantId}
+            and conversation_id = ${conversationId}
+            and status = 'active'
+          returning id::text
+        `;
+        handoffAction = changedHandoff ? 'handoff.released' : null;
+      } else if (input.targetStatus === 'bot' || input.targetStatus === 'closed') {
+        const resolution: HandoffResolutionCode =
+          input.targetStatus === 'bot' ? 'returned_to_bot' : 'conversation_closed';
+        [changedHandoff] = await transaction<{ id: string }[]>`
+          update handoffs
+          set
+            status = 'resolved',
+            resolution = ${resolution},
+            claimed_at = null,
+            resolved_at = now(),
+            version = version + 1,
+            updated_at = now()
+          where tenant_id = ${context.tenantId}
+            and conversation_id = ${conversationId}
+            and status in ('pending', 'active')
+          returning id::text
+        `;
+        handoffAction = changedHandoff ? 'handoff.resolved' : null;
+      }
       await transaction`
         insert into conversation_transitions (
           tenant_id, conversation_id, from_status, to_status, actor_id, reason
@@ -853,6 +1802,22 @@ export class ConversationService {
         current.status,
         input.targetStatus,
       );
+      if (changedHandoff && handoffAction) {
+        await transaction`
+          insert into audit_events (
+            tenant_id, actor_type, actor_id, action, entity_type,
+            entity_id, correlation_id, metadata
+          ) values (
+            ${context.tenantId}, 'user', ${identity.subject}, ${handoffAction},
+            'handoff', ${changedHandoff.id}, ${correlationId},
+            ${transaction.json({
+              conversationId,
+              targetStatus: input.targetStatus,
+              reason: input.reason ?? null,
+            })}
+          )
+        `;
+      }
       const result = await this.loadConversation(
         transaction,
         context.tenantId,

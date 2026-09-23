@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   conversationMessageSchema,
   createConversationSchema,
+  releaseConversationSchema,
   updateConversationLinksSchema,
 } from '../src/conversations/conversation.schemas.js';
 
@@ -32,5 +33,12 @@ describe('conversation API schemas', () => {
       }),
     ).toThrow();
     expect(() => updateConversationLinksSchema.parse({ expectedVersion: 1 })).toThrow();
+    expect(
+      releaseConversationSchema.parse({ expectedVersion: 2, reason: 'نهاية المناوبة' }),
+    ).toEqual({
+      expectedVersion: 2,
+      reason: 'نهاية المناوبة',
+    });
+    expect(() => releaseConversationSchema.parse({ expectedVersion: 2, reason: ' ' })).toThrow();
   });
 });

@@ -3,13 +3,55 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 type ConversationStatus = 'bot' | 'needs_human' | 'human' | 'closed';
+type HandoffReason =
+  | 'explicit_customer_request'
+  | 'low_confidence'
+  | 'safety_risk'
+  | 'tool_failure'
+  | 'pricing_policy'
+  | 'order_exception'
+  | 'unsupported_request'
+  | 'manual';
+
+interface Handoff {
+  id: string;
+  reason: HandoffReason;
+  status: 'pending' | 'active' | 'resolved';
+  summary: {
+    intent: string;
+    customerRequest: string;
+    product: { id: string; name: string } | null;
+    collectedData: {
+      draftOrderId: string | null;
+      draftStatus: string | null;
+      hasCustomerPhone: boolean;
+      hasShippingAddress: boolean;
+      itemCount: number;
+      orderId: string | null;
+      orderNumber: string | null;
+    };
+  };
+  currentWaitSeconds: number;
+  firstResponseSeconds: number | null;
+  resolutionSeconds: number | null;
+}
+
+interface HandoffMetrics {
+  pending: number;
+  active: number;
+  resolved: number;
+  averageFirstResponseSeconds: number | null;
+  averageResolutionSeconds: number | null;
+}
 
 interface ConversationSummary {
   id: string;
   customer: { id: string; name: string; contactHint: string | null };
   channel: string;
   status: ConversationStatus;
+  assignedToUserId: string | null;
   assignedToMe: boolean;
+  activeHandoff: Handoff | null;
   subject: string | null;
   version: number;
   lastMessagePreview: string | null;
@@ -29,6 +71,7 @@ interface Conversation extends ConversationSummary {
   draftOrderId: string | null;
   orderId: string | null;
   messages: Message[];
+  handoffs: Handoff[];
 }
 
 const statusLabels: Record<ConversationStatus, string> = {
@@ -46,6 +89,17 @@ const channelLabels: Record<string, string> = {
   email: 'البريد',
 };
 
+const handoffReasonLabels: Record<HandoffReason, string> = {
+  explicit_customer_request: 'طلب العميل موظفًا',
+  low_confidence: 'ثقة غير كافية',
+  safety_risk: 'مخاطر أمان',
+  tool_failure: 'تعذر أداة النظام',
+  pricing_policy: 'استثناء في سياسة السعر',
+  order_exception: 'استثناء في الطلب',
+  unsupported_request: 'طلب غير مدعوم آليًا',
+  manual: 'تحويل يدوي',
+};
+
 function formatTime(value: string | null): string {
   if (!value) return 'بلا رسائل';
   return new Intl.DateTimeFormat('ar-DZ', {
@@ -56,6 +110,14 @@ function formatTime(value: string | null): string {
   }).format(new Date(value));
 }
 
+function formatDuration(value: number | null): string {
+  if (value === null) return '—';
+  if (value < 60) return `${value}ث`;
+  const minutes = Math.round(value / 60);
+  if (minutes < 60) return `${minutes}د`;
+  return `${Math.round(minutes / 60)}س`;
+}
+
 export function InboxClient() {
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3001/api';
   const [tenantInput, setTenantInput] = useState('');
@@ -63,6 +125,13 @@ export function InboxClient() {
   const [connection, setConnection] = useState<{ tenantId: string; token: string } | null>(null);
   const [status, setStatus] = useState<ConversationStatus | 'all'>('all');
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [handoffMetrics, setHandoffMetrics] = useState<HandoffMetrics>({
+    pending: 0,
+    active: 0,
+    resolved: 0,
+    averageFirstResponseSeconds: null,
+    averageResolutionSeconds: null,
+  });
   const [selected, setSelected] = useState<Conversation | null>(null);
   const [reply, setReply] = useState('');
   const [pending, setPending] = useState(false);
@@ -111,10 +180,14 @@ export function InboxClient() {
     try {
       const query = new URLSearchParams({ limit: '100' });
       if (status !== 'all') query.set('status', status);
-      const result = await request<ConversationSummary[]>(
-        `/tenants/${connection.tenantId}/conversations?${query.toString()}`,
-      );
+      const [result, metrics] = await Promise.all([
+        request<ConversationSummary[]>(
+          `/tenants/${connection.tenantId}/conversations?${query.toString()}`,
+        ),
+        request<HandoffMetrics>(`/tenants/${connection.tenantId}/conversations/handoff-metrics`),
+      ]);
       setConversations(result);
+      setHandoffMetrics(metrics);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'تعذّر تحميل الصندوق.');
     } finally {
@@ -128,10 +201,10 @@ export function InboxClient() {
 
   const counters = useMemo(
     () => ({
-      urgent: conversations.filter((item) => item.status === 'needs_human').length,
+      urgent: handoffMetrics.pending,
       mine: conversations.filter((item) => item.assignedToMe).length,
     }),
-    [conversations],
+    [conversations, handoffMetrics.pending],
   );
 
   function connect(event: FormEvent<HTMLFormElement>): void {
@@ -241,6 +314,12 @@ export function InboxClient() {
           <span>
             <b>{counters.mine}</b> لديّ
           </span>
+          <span>
+            أول رد <b>{formatDuration(handoffMetrics.averageFirstResponseSeconds)}</b>
+          </span>
+          <span>
+            الحل <b>{formatDuration(handoffMetrics.averageResolutionSeconds)}</b>
+          </span>
           <button className="ghost-button" type="button" onClick={() => void refresh()}>
             تحديث
           </button>
@@ -307,13 +386,45 @@ export function InboxClient() {
                   </p>
                 </div>
                 <div className="thread-actions">
-                  {!selected.assignedToMe && selected.status !== 'closed' ? (
+                  {selected.status === 'needs_human' ? (
                     <button
                       type="button"
                       disabled={pending}
                       onClick={() => void mutate('/claim', { expectedVersion: selected.version })}
                     >
                       استلام
+                    </button>
+                  ) : null}
+                  {selected.assignedToMe && selected.status === 'human' ? (
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        void mutate('/release', {
+                          expectedVersion: selected.version,
+                          reason: 'Released from internal inbox',
+                        })
+                      }
+                    >
+                      تحرير
+                    </button>
+                  ) : null}
+                  {(selected.assignedToMe && selected.status === 'human') ||
+                  selected.status === 'needs_human' ? (
+                    <button
+                      className="ghost-button"
+                      type="button"
+                      disabled={pending}
+                      onClick={() =>
+                        void mutate('/status', {
+                          expectedVersion: selected.version,
+                          targetStatus: 'bot',
+                          reason: 'Returned to bot after human review',
+                        })
+                      }
+                    >
+                      إعادة للبوت
                     </button>
                   ) : null}
                   {selected.status !== 'closed' ? (
@@ -356,10 +467,51 @@ export function InboxClient() {
                 {selected.orderId ? <span>طلب مرتبط</span> : null}
               </div>
 
+              {selected.activeHandoff ? (
+                <section className="handoff-card" aria-label="ملخص التحويل">
+                  <div>
+                    <span className="eyebrow">HUMAN HANDOFF</span>
+                    <h3>{handoffReasonLabels[selected.activeHandoff.reason]}</h3>
+                    <p>{selected.activeHandoff.summary.customerRequest}</p>
+                  </div>
+                  <dl>
+                    <div>
+                      <dt>النية</dt>
+                      <dd>{selected.activeHandoff.summary.intent}</dd>
+                    </div>
+                    <div>
+                      <dt>المنتج</dt>
+                      <dd>{selected.activeHandoff.summary.product?.name ?? 'غير محدد'}</dd>
+                    </div>
+                    <div>
+                      <dt>المجموعة</dt>
+                      <dd>
+                        {selected.activeHandoff.summary.collectedData.itemCount} عنصر · هاتف{' '}
+                        {selected.activeHandoff.summary.collectedData.hasCustomerPhone ? '✓' : '—'}{' '}
+                        · عنوان{' '}
+                        {selected.activeHandoff.summary.collectedData.hasShippingAddress
+                          ? '✓'
+                          : '—'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>الانتظار</dt>
+                      <dd>{formatDuration(selected.activeHandoff.currentWaitSeconds)}</dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : null}
+
               <div className="messages" aria-live="polite">
                 {selected.messages.map((message) => (
                   <article
-                    className={`message ${message.direction === 'inbound' ? 'incoming' : 'outgoing'}`}
+                    className={`message ${
+                      message.direction === 'inbound'
+                        ? 'incoming'
+                        : message.direction === 'internal'
+                          ? 'internal'
+                          : 'outgoing'
+                    }`}
                     key={message.id}
                   >
                     <p>{message.content}</p>
@@ -377,11 +529,16 @@ export function InboxClient() {
                   onChange={(event) => setReply(event.target.value)}
                   placeholder="اكتب ردًا للعميل…"
                   maxLength={20_000}
-                  disabled={pending || selected.status === 'closed'}
+                  disabled={pending || selected.status !== 'human' || !selected.assignedToMe}
                 />
                 <button
                   type="submit"
-                  disabled={pending || selected.status === 'closed' || reply.trim().length === 0}
+                  disabled={
+                    pending ||
+                    selected.status !== 'human' ||
+                    !selected.assignedToMe ||
+                    reply.trim().length === 0
+                  }
                 >
                   إرسال
                 </button>

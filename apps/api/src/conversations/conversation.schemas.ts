@@ -40,6 +40,11 @@ export const claimConversationSchema = z.object({
   expectedVersion: z.number().int().positive(),
 });
 
+export const releaseConversationSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  reason: z.string().trim().min(2).max(500),
+});
+
 export const transitionConversationSchema = z.object({
   expectedVersion: z.number().int().positive(),
   targetStatus: z.enum(['bot', 'needs_human', 'human', 'closed']),
@@ -69,5 +74,6 @@ export type ConversationMessageInput = z.infer<typeof conversationMessageSchema>
 export type CreateConversationInput = z.infer<typeof createConversationSchema>;
 export type ConversationSearchInput = z.infer<typeof conversationSearchSchema>;
 export type ClaimConversationInput = z.infer<typeof claimConversationSchema>;
+export type ReleaseConversationInput = z.infer<typeof releaseConversationSchema>;
 export type TransitionConversationInput = z.infer<typeof transitionConversationSchema>;
 export type UpdateConversationLinksInput = z.infer<typeof updateConversationLinksSchema>;
