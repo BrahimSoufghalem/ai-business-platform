@@ -6,6 +6,19 @@ Product types are tenant-owned schemas. Adding a new type or attribute does not 
 
 `GET /api/product-type-templates` returns starter schemas for General Product, Clothing, Shoes, Smartphone, Laptop, and Headset. Templates are copied at creation time and remain fully editable.
 
+## Web studio
+
+`/settings/product-types` provides the owner/manager workflow:
+
+- start from one of the six templates or a blank custom type;
+- edit name, slug, description and ordered attributes;
+- configure text, number, boolean, select and multi-select values;
+- mark required, searchable and Variant-axis fields;
+- update with the current `schemaVersion` and surface stale-editor conflicts;
+- archive without deleting historical product data.
+
+The access token remains in page memory and is not persisted in browser storage.
+
 ## Tenant endpoints
 
 - `GET /api/tenants/:tenantId/product-types`

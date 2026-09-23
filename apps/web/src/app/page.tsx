@@ -17,13 +17,16 @@ export default function HomePage() {
         </p>
         <div className="status">
           <span className="dot" aria-hidden="true" />
-          مرحلة التأسيس قيد التنفيذ
+          MVP الداخلي جاهز للـPilot الاصطناعي
         </div>
         <a className="primary-link" href="/inbox">
           فتح الصندوق الداخلي
         </a>
         <a className="secondary-link" href="/settings/configuration">
           مركز القواعد والمعرفة
+        </a>
+        <a className="secondary-link" href="/settings/product-types">
+          أنواع المنتجات
         </a>
         <a className="secondary-link" href="/dashboard">
           لوحة تشغيل Pilot

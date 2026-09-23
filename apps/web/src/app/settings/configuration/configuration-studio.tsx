@@ -493,9 +493,14 @@ export function ConfigurationStudio() {
           <h1>مركز القواعد والمعرفة</h1>
           <p>كل تغيير مسودة مستقلة، ولا يصل للوكيل إلا بعد نشر صريح.</p>
         </div>
-        <button className="ghost-button" type="button" onClick={() => void refresh()}>
-          تحديث
-        </button>
+        <div className="product-type-header-actions">
+          <a className="ghost-link" href="/settings/product-types">
+            أنواع المنتجات
+          </a>
+          <button className="ghost-button" type="button" onClick={() => void refresh()}>
+            تحديث
+          </button>
+        </div>
       </header>
 
       <nav className="config-tabs" aria-label="أقسام الإعداد">
