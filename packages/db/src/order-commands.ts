@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   InvalidOrderTransitionError,
   assertOrderTransition,
-  calculateOrderTotals,
+  calculateQuotedOrderTotals,
   type DraftOrderStatus,
   type OrderStatus,
 } from '@ai-business/domain';
@@ -56,9 +56,21 @@ interface DraftOrderItemRow {
   skuSnapshot: string;
   variantAttributesSnapshot: Record<string, unknown>;
   quantity: number;
+  listPrice: string;
   unitPrice: string;
   lineTotal: string;
   currency: string;
+  pricingDecisionId: string | null;
+  currentListPrice: string;
+  decisionProductId: string | null;
+  decisionVariantId: string | null;
+  decisionConversationId: string | null;
+  decisionCurrency: string | null;
+  decisionListPrice: string | null;
+  decisionDecidedPrice: string | null;
+  decisionOutcome: 'accept' | 'counter' | 'handoff' | 'reject' | null;
+  pricingRuleStatus: 'draft' | 'published' | 'superseded' | null;
+  pricingConversationLinked: boolean;
   productStatus: 'draft' | 'active' | 'archived';
   variantStatus: 'active' | 'archived';
 }
@@ -297,8 +309,28 @@ export async function confirmDraftOrder(
       item.variant_name_snapshot as "variantNameSnapshot",
       item.sku_snapshot as "skuSnapshot",
       item.variant_attributes_snapshot as "variantAttributesSnapshot",
-      item.quantity, item.unit_price::text as "unitPrice",
+      item.quantity, item.list_price::text as "listPrice",
+      item.unit_price::text as "unitPrice",
       item.line_total::text as "lineTotal", item.currency,
+      item.pricing_decision_id::text as "pricingDecisionId",
+      coalesce(variant.price_override, product.base_price)::text as "currentListPrice",
+      decision.product_id::text as "decisionProductId",
+      decision.variant_id::text as "decisionVariantId",
+      decision.conversation_id::text as "decisionConversationId",
+      decision.currency as "decisionCurrency",
+      decision.list_price::text as "decisionListPrice",
+      decision.decided_price::text as "decisionDecidedPrice",
+      decision.outcome::text as "decisionOutcome",
+      rule_version.status::text as "pricingRuleStatus",
+      (
+        decision.conversation_id is null
+        or exists (
+          select 1 from conversations as linked_conversation
+          where linked_conversation.tenant_id = item.tenant_id
+            and linked_conversation.id = decision.conversation_id
+            and linked_conversation.draft_order_id = item.draft_order_id
+        )
+      ) as "pricingConversationLinked",
       product.status::text as "productStatus",
       variant.status::text as "variantStatus"
     from draft_order_items as item
@@ -306,6 +338,13 @@ export async function confirmDraftOrder(
       on product.tenant_id = item.tenant_id and product.id = item.product_id
     join product_variants as variant
       on variant.tenant_id = item.tenant_id and variant.id = item.variant_id
+    left join pricing_decisions as decision
+      on decision.tenant_id = item.tenant_id
+      and decision.id = item.pricing_decision_id
+    left join business_rule_versions as rule_version
+      on rule_version.tenant_id = decision.tenant_id
+      and rule_version.rule_set_id = decision.rule_set_id
+      and rule_version.id = decision.rule_version_id
     where item.tenant_id = ${context.tenantId}
       and item.draft_order_id = ${draft.id}
     order by item.created_at, item.id
@@ -325,15 +364,41 @@ export async function confirmDraftOrder(
       'Every item must still be active and use the draft currency.',
     );
   }
-  const totals = calculateOrderTotals(
-    items.map((item) => ({ unitPrice: item.unitPrice, quantity: item.quantity })),
-    {
-      discountAmount: draft.discountAmount,
-      shippingAmount: draft.shippingAmount,
-    },
+  if (items.some((item) => item.currentListPrice !== item.listPrice)) {
+    throw new DraftOrderValidationError(
+      'A catalog price changed; refresh the draft and request confirmation again.',
+    );
+  }
+  if (
+    items.some((item) =>
+      item.pricingDecisionId
+        ? item.decisionProductId !== item.productId ||
+          item.decisionVariantId !== item.variantId ||
+          !item.pricingConversationLinked ||
+          item.decisionCurrency !== item.currency ||
+          item.decisionListPrice !== item.listPrice ||
+          item.decisionDecidedPrice !== item.unitPrice ||
+          (item.decisionOutcome !== 'accept' && item.decisionOutcome !== 'counter') ||
+          item.pricingRuleStatus !== 'published'
+        : item.unitPrice !== item.listPrice,
+    )
+  ) {
+    throw new DraftOrderValidationError(
+      'A negotiated price is missing a current accepted pricing decision.',
+    );
+  }
+  const totals = calculateQuotedOrderTotals(
+    items.map((item) => ({
+      listPrice: item.listPrice,
+      unitPrice: item.unitPrice,
+      quantity: item.quantity,
+    })),
+    { shippingAmount: draft.shippingAmount },
   );
   if (
     totals.subtotal !== draft.subtotal ||
+    totals.discountAmount !== draft.discountAmount ||
+    totals.shippingAmount !== draft.shippingAmount ||
     totals.total !== draft.total ||
     totals.lines.some((line, index) => line.lineTotal !== items[index]?.lineTotal)
   ) {
@@ -378,14 +443,15 @@ export async function confirmDraftOrder(
       insert into order_items (
         tenant_id, order_id, product_id, variant_id, location_id, reservation_id,
         product_name_snapshot, product_code_snapshot, variant_name_snapshot,
-        sku_snapshot, variant_attributes_snapshot, quantity, unit_price,
-        line_total, currency
+        sku_snapshot, variant_attributes_snapshot, quantity, list_price,
+        unit_price, line_total, currency, pricing_decision_id
       ) values (
         ${context.tenantId}, ${input.orderId}, ${item.productId}, ${item.variantId},
         ${item.locationId}, ${reservation.reservation.id}, ${item.productNameSnapshot},
         ${item.productCodeSnapshot}, ${item.variantNameSnapshot}, ${item.skuSnapshot},
         ${transaction.json(jsonInput(item.variantAttributesSnapshot))}, ${item.quantity},
-        ${calculated.unitPrice}, ${calculated.lineTotal}, ${item.currency}
+        ${calculated.listPrice}, ${calculated.unitPrice}, ${calculated.lineTotal},
+        ${item.currency}, ${item.pricingDecisionId}
       )
     `;
   }

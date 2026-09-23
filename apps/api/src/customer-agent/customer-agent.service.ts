@@ -9,6 +9,7 @@ import { KnowledgeService } from '../configuration/knowledge.service.js';
 import { ConversationService } from '../conversations/conversation.service.js';
 import { DatabaseService } from '../database/database.service.js';
 import { InventoryService } from '../inventory/inventory.service.js';
+import { OrderService } from '../orders/order.service.js';
 import { ProductService } from '../products/product.service.js';
 import { authorizeTenantPermission } from '../tenancy/tenant-authorization.js';
 import { createCandidateTenantContext } from '../tenancy/trusted-tenant-context.js';
@@ -56,6 +57,7 @@ export class CustomerAgentService {
     @Inject(ConversationService) private readonly conversations: ConversationService,
     @Inject(ProductService) private readonly products: ProductService,
     @Inject(InventoryService) private readonly inventory: InventoryService,
+    @Inject(OrderService) private readonly orders: OrderService,
     @Inject(BusinessRuleService) private readonly rules: BusinessRuleService,
     @Inject(KnowledgeService) private readonly knowledge: KnowledgeService,
     @Inject(AgentSettingsService) private readonly settings: AgentSettingsService,
@@ -110,9 +112,12 @@ export class CustomerAgentService {
       identity,
       tenantId,
       conversationId,
+      customerId: conversation.customer.id,
       correlationId,
+      conversations: this.conversations,
       products: this.products,
       inventory: this.inventory,
+      orders: this.orders,
       rules: this.rules,
       knowledge: this.knowledge,
       settings: this.settings,
@@ -136,7 +141,11 @@ export class CustomerAgentService {
       conversation: {
         id: conversation.id,
         status: conversation.status,
+        version: conversation.version,
+        customerId: conversation.customer.id,
         linkedProductId: conversation.productId,
+        linkedDraftOrderId: conversation.draftOrderId,
+        linkedOrderId: conversation.orderId,
         messages: conversation.messages.map((message) => ({
           id: message.id,
           direction: message.direction,

@@ -76,6 +76,7 @@ const effectivePriceOutputSchema = z
     amount: z.string().regex(/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/u),
     currency: z.string().regex(/^[A-Z]{3}$/u),
     source: z.enum(['catalog', 'published_rule']),
+    pricingDecisionId: uuidSchema.nullable(),
     rule: z
       .object({
         ruleSetId: uuidSchema,
@@ -85,6 +86,161 @@ const effectivePriceOutputSchema = z
       .strict()
       .nullable(),
     observedAt: isoDateSchema,
+  })
+  .strict();
+
+const moneySchema = z.string().regex(/^(?:0|[1-9]\d{0,11})(?:\.\d{1,2})?$/u);
+
+const evaluatePriceOfferInputSchema = z
+  .object({
+    productId: uuidSchema,
+    variantId: uuidSchema,
+    requestedPrice: moneySchema,
+  })
+  .strict();
+
+const priceRuleReferenceSchema = z
+  .object({
+    ruleSetId: uuidSchema,
+    ruleVersionId: uuidSchema,
+    version: z.number().int().positive(),
+  })
+  .strict();
+
+const evaluatePriceOfferOutputSchema = z
+  .object({
+    pricingDecisionId: uuidSchema.nullable(),
+    productId: uuidSchema,
+    variantId: uuidSchema,
+    currency: z.string().regex(/^[A-Z]{3}$/u),
+    listPrice: moneySchema,
+    requestedPrice: moneySchema,
+    decidedPrice: moneySchema.nullable(),
+    outcome: z.enum(['accept', 'counter', 'handoff', 'reject']),
+    reason: z.string().min(1).max(500),
+    rule: priceRuleReferenceSchema.nullable(),
+    observedAt: isoDateSchema,
+  })
+  .strict();
+
+const shippingAddressSchema = z
+  .object({
+    line1: z.string().trim().min(2).max(180),
+    line2: z.string().trim().min(1).max(180).nullable(),
+    city: z.string().trim().min(2).max(100),
+    region: z.string().trim().min(1).max(100).nullable(),
+    postalCode: z.string().trim().min(1).max(24).nullable(),
+    countryCode: z.string().regex(/^[A-Z]{2}$/u),
+  })
+  .strict();
+
+const draftOrderItemSchema = z
+  .object({
+    productId: uuidSchema,
+    variantId: uuidSchema,
+    productName: z.string().min(1).max(160),
+    variantName: z.string().max(120).nullable(),
+    sku: z.string().min(1).max(64),
+    quantity: z.number().int().min(1).max(1_000_000),
+    listPrice: moneySchema,
+    unitPrice: moneySchema,
+    lineTotal: moneySchema,
+    currency: z.string().regex(/^[A-Z]{3}$/u),
+    pricingDecisionId: uuidSchema.nullable(),
+  })
+  .strict();
+
+const draftOrderOutputSchema = z
+  .object({
+    operation: z.enum(['created', 'updated', 'loaded', 'submitted', 'cancelled']),
+    draftOrderId: uuidSchema,
+    status: z.enum(['draft', 'awaiting_confirmation', 'confirmed', 'cancelled']),
+    version: z.number().int().positive(),
+    currency: z.string().regex(/^[A-Z]{3}$/u),
+    subtotal: moneySchema,
+    discountAmount: moneySchema,
+    shippingAmount: moneySchema,
+    total: moneySchema,
+    items: z.array(draftOrderItemSchema).min(1).max(100),
+    missingFields: z.array(z.enum(['customer_phone', 'shipping_address'])).max(2),
+    readyForConfirmation: z.boolean(),
+  })
+  .strict();
+
+const draftMutationOutputSchema = z
+  .object({
+    outcome: z.enum(['saved', 'out_of_stock', 'stale']),
+    draft: draftOrderOutputSchema.nullable(),
+    reason: z.string().max(500).nullable(),
+  })
+  .strict();
+
+const getDraftOrderInputSchema = z.object({ draftOrderId: uuidSchema }).strict();
+
+const createOrUpdateDraftInputSchema = z
+  .object({
+    draftOrderId: uuidSchema.nullable(),
+    expectedVersion: z.number().int().positive().nullable(),
+    variantId: uuidSchema,
+    quantity: z.number().int().min(1).max(100),
+    pricingDecisionId: uuidSchema.nullable(),
+    customerPhone: z
+      .string()
+      .regex(/^\+?[0-9]{8,15}$/u)
+      .nullable(),
+    shippingAddress: shippingAddressSchema.nullable(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.draftOrderId === null && value.expectedVersion === null) ||
+      (value.draftOrderId !== null && value.expectedVersion !== null),
+    { message: 'Draft ID and expected version must both be present or both be null.' },
+  );
+
+const submitDraftOrderInputSchema = z
+  .object({
+    draftOrderId: uuidSchema,
+    expectedVersion: z.number().int().positive(),
+  })
+  .strict();
+
+const confirmDraftOrderInputSchema = z
+  .object({
+    draftOrderId: uuidSchema,
+    expectedVersion: z.number().int().positive(),
+    approvalMessageId: uuidSchema,
+    customerApproved: z.literal(true),
+  })
+  .strict();
+
+const cancelDraftOrderInputSchema = z
+  .object({
+    draftOrderId: uuidSchema,
+    expectedVersion: z.number().int().positive(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .strict();
+
+const confirmedOrderSchema = z
+  .object({
+    orderId: uuidSchema,
+    orderNumber: z.string().min(1).max(80),
+    status: z.literal('confirmed'),
+    currency: z.string().regex(/^[A-Z]{3}$/u),
+    subtotal: moneySchema,
+    discountAmount: moneySchema,
+    shippingAmount: moneySchema,
+    total: moneySchema,
+    items: z.array(draftOrderItemSchema).min(1).max(100),
+  })
+  .strict();
+
+const confirmDraftOutputSchema = z
+  .object({
+    outcome: z.enum(['confirmed', 'out_of_stock', 'stale', 'invalid_state']),
+    order: confirmedOrderSchema.nullable(),
+    reason: z.string().max(500).nullable(),
   })
   .strict();
 
@@ -172,6 +328,102 @@ const effectivePriceJsonSchema = {
   required: ['productId', 'variantId'],
 } as const;
 
+const evaluatePriceOfferJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    productId: { type: 'string', format: 'uuid' },
+    variantId: { type: 'string', format: 'uuid' },
+    requestedPrice: {
+      type: 'string',
+      pattern: '^(?:0|[1-9]\\d{0,11})(?:\\.\\d{1,2})?$',
+    },
+  },
+  required: ['productId', 'variantId', 'requestedPrice'],
+} as const;
+
+const getDraftOrderJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    draftOrderId: { type: 'string', format: 'uuid' },
+  },
+  required: ['draftOrderId'],
+} as const;
+
+const shippingAddressJsonSchema = {
+  type: ['object', 'null'],
+  additionalProperties: false,
+  properties: {
+    line1: { type: 'string', minLength: 2, maxLength: 180 },
+    line2: { type: ['string', 'null'], minLength: 1, maxLength: 180 },
+    city: { type: 'string', minLength: 2, maxLength: 100 },
+    region: { type: ['string', 'null'], minLength: 1, maxLength: 100 },
+    postalCode: { type: ['string', 'null'], minLength: 1, maxLength: 24 },
+    countryCode: { type: 'string', pattern: '^[A-Z]{2}$' },
+  },
+  required: ['line1', 'line2', 'city', 'region', 'postalCode', 'countryCode'],
+} as const;
+
+const createOrUpdateDraftJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    draftOrderId: { type: ['string', 'null'], format: 'uuid' },
+    expectedVersion: { type: ['integer', 'null'], minimum: 1 },
+    variantId: { type: 'string', format: 'uuid' },
+    quantity: { type: 'integer', minimum: 1, maximum: 100 },
+    pricingDecisionId: { type: ['string', 'null'], format: 'uuid' },
+    customerPhone: {
+      type: ['string', 'null'],
+      pattern: '^\\+?[0-9]{8,15}$',
+    },
+    shippingAddress: shippingAddressJsonSchema,
+  },
+  required: [
+    'draftOrderId',
+    'expectedVersion',
+    'variantId',
+    'quantity',
+    'pricingDecisionId',
+    'customerPhone',
+    'shippingAddress',
+  ],
+} as const;
+
+const submitDraftOrderJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    draftOrderId: { type: 'string', format: 'uuid' },
+    expectedVersion: { type: 'integer', minimum: 1 },
+  },
+  required: ['draftOrderId', 'expectedVersion'],
+} as const;
+
+const confirmDraftOrderJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    draftOrderId: { type: 'string', format: 'uuid' },
+    expectedVersion: { type: 'integer', minimum: 1 },
+    approvalMessageId: { type: 'string', format: 'uuid' },
+    customerApproved: { const: true },
+  },
+  required: ['draftOrderId', 'expectedVersion', 'approvalMessageId', 'customerApproved'],
+} as const;
+
+const cancelDraftOrderJsonSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    draftOrderId: { type: 'string', format: 'uuid' },
+    expectedVersion: { type: 'integer', minimum: 1 },
+    reason: { type: 'string', minLength: 3, maxLength: 500 },
+  },
+  required: ['draftOrderId', 'expectedVersion', 'reason'],
+} as const;
+
 const businessRulesJsonSchema = {
   type: 'object',
   additionalProperties: false,
@@ -205,8 +457,14 @@ export const CUSTOMER_AGENT_TOOL_NAMES = [
   'search_products',
   'get_variant_availability',
   'get_effective_price',
+  'evaluate_price_offer',
   'get_business_rules',
   'find_knowledge',
+  'get_draft_order',
+  'create_or_update_draft_order',
+  'submit_draft_order',
+  'confirm_draft_order',
+  'cancel_draft_order',
 ] as const;
 
 export function createCustomerAgentToolRegistry(source: CustomerAgentDataSource): ToolRegistry {
@@ -248,6 +506,18 @@ export function createCustomerAgentToolRegistry(source: CustomerAgentDataSource)
     execute: (input, context) => source.getEffectivePrice(dataContext(context), input),
   });
   registry.register({
+    name: 'evaluate_price_offer',
+    description:
+      'Evaluate one customer unit-price offer against the current published pricing policy. The returned decision is the only allowed negotiated price source.',
+    kind: 'read',
+    allowedIntents: ['pricing', 'order_draft'],
+    inputSchema: evaluatePriceOfferInputSchema,
+    outputSchema: evaluatePriceOfferOutputSchema,
+    inputJsonSchema: evaluatePriceOfferJsonSchema,
+    timeoutMs: 3_000,
+    execute: (input, context) => source.evaluatePriceOffer(dataContext(context), input),
+  });
+  registry.register({
     name: 'get_business_rules',
     description: 'Read only published, typed business rules for the current store.',
     kind: 'read',
@@ -270,6 +540,65 @@ export function createCustomerAgentToolRegistry(source: CustomerAgentDataSource)
     timeoutMs: 3_000,
     execute: (input, context) => source.findKnowledge(dataContext(context), input),
   });
+  registry.register({
+    name: 'get_draft_order',
+    description:
+      'Load the conversation-linked draft summary without customer contact or address details.',
+    kind: 'read',
+    allowedIntents: ['order_draft', 'order_confirmation'],
+    inputSchema: getDraftOrderInputSchema,
+    outputSchema: draftOrderOutputSchema,
+    inputJsonSchema: getDraftOrderJsonSchema,
+    timeoutMs: 3_000,
+    execute: (input, context) => source.getDraftOrder(dataContext(context), input),
+  });
+  registry.register({
+    name: 'create_or_update_draft_order',
+    description:
+      'Create or update the conversation draft using a catalog variant, current stock location, validated pricing decision, and optional contact fields.',
+    kind: 'command',
+    allowedIntents: ['order_draft'],
+    inputSchema: createOrUpdateDraftInputSchema,
+    outputSchema: draftMutationOutputSchema,
+    inputJsonSchema: createOrUpdateDraftJsonSchema,
+    timeoutMs: 5_000,
+    execute: (input, context) => source.createOrUpdateDraftOrder(dataContext(context), input),
+  });
+  registry.register({
+    name: 'submit_draft_order',
+    description:
+      'Freeze a complete draft for explicit customer confirmation. This never confirms or reserves stock.',
+    kind: 'command',
+    allowedIntents: ['order_draft'],
+    inputSchema: submitDraftOrderInputSchema,
+    outputSchema: draftMutationOutputSchema,
+    inputJsonSchema: submitDraftOrderJsonSchema,
+    timeoutMs: 5_000,
+    execute: (input, context) => source.submitDraftOrder(dataContext(context), input),
+  });
+  registry.register({
+    name: 'confirm_draft_order',
+    description:
+      'Confirm an awaiting draft only from the exact inbound explicit-approval message. The command is idempotent and rechecks policy, price, and stock.',
+    kind: 'command',
+    allowedIntents: ['order_confirmation'],
+    inputSchema: confirmDraftOrderInputSchema,
+    outputSchema: confirmDraftOutputSchema,
+    inputJsonSchema: confirmDraftOrderJsonSchema,
+    timeoutMs: 8_000,
+    execute: (input, context) => source.confirmDraftOrder(dataContext(context), input),
+  });
+  registry.register({
+    name: 'cancel_draft_order',
+    description: 'Cancel the active conversation draft before it becomes an order.',
+    kind: 'command',
+    allowedIntents: ['order_draft'],
+    inputSchema: cancelDraftOrderInputSchema,
+    outputSchema: draftMutationOutputSchema,
+    inputJsonSchema: cancelDraftOrderJsonSchema,
+    timeoutMs: 5_000,
+    execute: (input, context) => source.cancelDraftOrder(dataContext(context), input),
+  });
   return registry;
 }
 
@@ -280,8 +609,18 @@ export const customerAgentToolSchemas = {
   availabilityOutputSchema,
   effectivePriceInputSchema,
   effectivePriceOutputSchema,
+  evaluatePriceOfferInputSchema,
+  evaluatePriceOfferOutputSchema,
   businessRulesInputSchema,
   businessRulesOutputSchema,
   findKnowledgeInputSchema,
   findKnowledgeOutputSchema,
+  getDraftOrderInputSchema,
+  draftOrderOutputSchema,
+  createOrUpdateDraftInputSchema,
+  draftMutationOutputSchema,
+  submitDraftOrderInputSchema,
+  confirmDraftOrderInputSchema,
+  confirmDraftOutputSchema,
+  cancelDraftOrderInputSchema,
 } as const;

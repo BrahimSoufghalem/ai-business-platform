@@ -119,6 +119,20 @@ function source(overrides: Partial<CustomerAgentDataSource> = {}): CustomerAgent
       amount: '125000.00',
       currency: 'DZD',
       source: 'catalog',
+      pricingDecisionId: null,
+      rule: null,
+      observedAt: '2026-01-01T00:00:00.000Z',
+    }),
+    evaluatePriceOffer: async (_context, input) => ({
+      pricingDecisionId: null,
+      productId: input.productId,
+      variantId: input.variantId,
+      currency: 'DZD',
+      listPrice: '125000.00',
+      requestedPrice: input.requestedPrice,
+      decidedPrice: null,
+      outcome: 'reject',
+      reason: 'no_rule',
       rule: null,
       observedAt: '2026-01-01T00:00:00.000Z',
     }),
@@ -140,6 +154,21 @@ function source(overrides: Partial<CustomerAgentDataSource> = {}): CustomerAgent
         },
       ],
     }),
+    getDraftOrder: async () => {
+      throw new Error('not_used');
+    },
+    createOrUpdateDraftOrder: async () => {
+      throw new Error('not_used');
+    },
+    submitDraftOrder: async () => {
+      throw new Error('not_used');
+    },
+    confirmDraftOrder: async () => {
+      throw new Error('not_used');
+    },
+    cancelDraftOrder: async () => {
+      throw new Error('not_used');
+    },
     ...overrides,
   };
 }
@@ -152,7 +181,11 @@ function turn(content: string): CustomerAgentTurnInput {
     conversation: {
       id: conversationId,
       status: 'bot',
+      version: 1,
+      customerId: '10000000-0000-4000-8000-000000000009',
       linkedProductId: null,
+      linkedDraftOrderId: null,
+      linkedOrderId: null,
       messages: [
         {
           id: messageId,

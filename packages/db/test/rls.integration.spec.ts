@@ -753,13 +753,13 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
         insert into draft_order_items (
           tenant_id, draft_order_id, product_id, variant_id, location_id,
           product_name_snapshot, product_code_snapshot, variant_name_snapshot,
-          sku_snapshot, variant_attributes_snapshot, quantity, unit_price,
-          line_total, currency
+          sku_snapshot, variant_attributes_snapshot, quantity, list_price,
+          unit_price, line_total, currency
         ) values (
           ${tenantA}, ${draftOrderA}, ${productA}, ${variantA},
           ${inventoryLocationA}, 'Checkout Phone', 'P-TEST', null,
           'P-TEST-BLACK', '{"storage":"128 GB","color":"Black"}'::jsonb,
-          2, 100000, 200000, 'DZD'
+          2, 100000, 100000, 200000, 'DZD'
         )
       `;
     });
@@ -1004,13 +1004,13 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
         insert into draft_order_items (
           tenant_id, draft_order_id, product_id, variant_id, location_id,
           product_name_snapshot, product_code_snapshot, variant_name_snapshot,
-          sku_snapshot, variant_attributes_snapshot, quantity, unit_price,
-          line_total, currency
+          sku_snapshot, variant_attributes_snapshot, quantity, list_price,
+          unit_price, line_total, currency
         ) values (
           ${tenantA}, ${draftOrderB}, ${productA}, ${variantA},
           ${inventoryLocationA}, 'Changed Product Name', 'P-TEST', null,
           'P-TEST-BLACK', '{"storage":"128 GB","color":"Black"}'::jsonb,
-          1, 120000, 120000, 'DZD'
+          1, 120000, 120000, 120000, 'DZD'
         )
       `;
     });

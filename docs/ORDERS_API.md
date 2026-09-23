@@ -4,6 +4,7 @@
 
 - A Draft Order is editable and separate from a confirmed Order.
 - Product and variant prices are read from the catalog; callers do not supply line prices.
+- A negotiated price is accepted only through a persisted `pricingDecisionId` from a published pricing rule.
 - Money is calculated in the Domain layer with exact integer minor-unit arithmetic.
 - Editing a draft that was awaiting confirmation resets it to `draft`.
 - Confirmation requires `awaiting_confirmation`, a current version, complete customer and shipping data, and explicit customer approval.
@@ -52,6 +53,12 @@ Customer fields may be incomplete while the conversation is collecting data. At 
 ```
 
 The response contains catalog-derived unit prices, line totals, subtotal, and total.
+
+### Negotiated items
+
+The customer-agent command path may pass a `pricingDecisionId`; public callers still cannot pass arbitrary prices. The service verifies that the decision belongs to the same tenant, product and variant, has the same currency and list price, has an `accept` or `counter` outcome, and points to a currently published rule version.
+
+Each item returns both `listPrice` and final `unitPrice`. `discountAmount` is calculated from their difference. Database constraints and triggers reject discounted draft/order items without the exact matching decision.
 
 ### Submit for customer confirmation
 
@@ -117,6 +124,7 @@ Order items copy:
 - Product name and display code.
 - Variant name, SKU, and attributes.
 - Unit price, quantity, line total, and currency.
+- Catalog `listPrice` and the exact `pricingDecisionId` when a policy-backed discount was used.
 - Inventory location and reservation.
 
 Runtime RLS permits selecting and inserting Order Items, command records, and transitions but denies updates and deletes. A database trigger also prevents changes to confirmed Order customer, address, product total, and price snapshot fields.

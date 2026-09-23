@@ -49,4 +49,5 @@ Run the database integration gate with:
 DATABASE_URL=postgresql://... TEST_DATABASE_URL=postgresql://... pnpm db:migrate
 pnpm --filter @ai-business/db test:integration
 pnpm --filter @ai-business/customer-agent test
+TEST_DATABASE_URL=postgresql://... pnpm --filter @ai-business/api test:integration
 ```
