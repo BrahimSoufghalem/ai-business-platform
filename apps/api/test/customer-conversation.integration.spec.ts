@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { createDatabaseClient } from '@ai-business/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ConversationService } from '../src/conversations/conversation.service.js';
@@ -69,6 +69,7 @@ describeWithDatabase('customer and conversation services', () => {
   });
 
   afterAll(async () => {
+    await admin`delete from handoffs where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from ai_tool_calls where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from ai_runs where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from conversation_transitions where tenant_id in (${tenantA}, ${tenantB})`;
@@ -156,6 +157,12 @@ describeWithDatabase('customer and conversation services', () => {
     expect(replayedThread.id).toBe(created.id);
     expect(replayedThread.messages).toHaveLength(1);
 
+    const claimed = await conversations.claim(identity, 'conversation-claim', tenantA, created.id, {
+      expectedVersion: created.version,
+    });
+    expect(claimed.status).toBe('human');
+    expect(claimed.assignedToMe).toBe(true);
+
     const message = {
       direction: 'outbound' as const,
       senderType: 'agent' as const,
@@ -182,12 +189,6 @@ describeWithDatabase('customer and conversation services', () => {
     expect(replay.replayed).toBe(true);
     expect(replay.id).toBe(first.id);
 
-    const claimed = await conversations.claim(identity, 'conversation-claim', tenantA, created.id, {
-      expectedVersion: created.version,
-    });
-    expect(claimed.status).toBe('human');
-    expect(claimed.assignedToMe).toBe(true);
-    expect(claimed.messages).toHaveLength(2);
     const closed = await conversations.transition(
       identity,
       'conversation-close',
@@ -204,6 +205,209 @@ describeWithDatabase('customer and conversation services', () => {
     await expect(
       conversations.get(identity, 'cross-tenant-read', tenantB, created.id),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('creates one redacted handoff, stops the bot, and supports claim/release/resume', async () => {
+    const [customer] = await customers.list(identity, 'handoff-customer-list', tenantA, {
+      status: 'active',
+      q: 'Customer Integration',
+      limit: 50,
+    });
+    if (!customer) throw new Error('Customer fixture not found.');
+    const conversation = await conversations.create(
+      identity,
+      'handoff-conversation-create',
+      tenantA,
+      {
+        customerId: customer.id,
+        channel: 'internal',
+        externalThreadId: 'agent-handoff-thread',
+        status: 'bot',
+        subject: 'Human handoff integration',
+        productId: null,
+        draftOrderId: null,
+        orderId: null,
+        initialMessage: {
+          direction: 'inbound',
+          senderType: 'customer',
+          senderId: null,
+          externalId: 'handoff-customer-request',
+          content: 'أريد التحدث مع موظف',
+          metadata: {},
+        },
+      },
+    );
+    const inbound = conversation.messages[0];
+    if (!inbound) throw new Error('Handoff inbound fixture was not created.');
+
+    const handoffReply = await customerAgent.reply(
+      identity,
+      'handoff-agent-reply',
+      tenantA,
+      conversation.id,
+      { messageId: inbound.id },
+    );
+    const replay = await customerAgent.reply(
+      identity,
+      'handoff-agent-replay',
+      tenantA,
+      conversation.id,
+      { messageId: inbound.id },
+    );
+    expect(handoffReply.status).toBe('handoff');
+    expect(handoffReply.handoffId).not.toBeNull();
+    expect(replay).toEqual({ ...handoffReply, replayed: true });
+
+    const queued = await conversations.get(
+      identity,
+      'handoff-queued-read',
+      tenantA,
+      conversation.id,
+    );
+    expect(queued.status).toBe('needs_human');
+    expect(queued.assignedToUserId).toBeNull();
+    expect(queued.handoffs).toHaveLength(1);
+    expect(queued.activeHandoff).toMatchObject({
+      id: handoffReply.handoffId,
+      reason: 'explicit_customer_request',
+      status: 'pending',
+      intent: 'handoff',
+      summary: {
+        schemaVersion: 1,
+        customerRequest: 'أريد التحدث مع موظف',
+        collectedData: {
+          hasCustomerPhone: false,
+          hasShippingAddress: false,
+          itemCount: 0,
+        },
+      },
+    });
+    expect(JSON.stringify(queued.activeHandoff?.summary)).not.toContain('0555123456');
+    expect(
+      queued.messages.filter((message) => message.metadata.kind === 'handoff_notification'),
+    ).toHaveLength(1);
+
+    const queuedMetrics = await conversations.getHandoffMetrics(
+      identity,
+      'handoff-metrics-queued',
+      tenantA,
+    );
+    expect(queuedMetrics.pending).toBeGreaterThanOrEqual(1);
+
+    const claimed = await conversations.claim(identity, 'handoff-claim', tenantA, conversation.id, {
+      expectedVersion: queued.version,
+    });
+    expect(claimed.status).toBe('human');
+    expect(claimed.assignedToMe).toBe(true);
+    expect(claimed.activeHandoff).toMatchObject({
+      id: handoffReply.handoffId,
+      status: 'active',
+      assignedToMe: true,
+    });
+    expect(claimed.activeHandoff?.firstClaimedAt).not.toBeNull();
+
+    const newInbound = await conversations.appendMessage(
+      identity,
+      'handoff-new-inbound',
+      tenantA,
+      conversation.id,
+      {
+        direction: 'inbound',
+        senderType: 'customer',
+        senderId: null,
+        externalId: 'handoff-customer-follow-up',
+        content: 'هل أنت هنا؟',
+        metadata: {},
+      },
+    );
+    await expect(
+      customerAgent.reply(identity, 'handoff-block-bot', tenantA, conversation.id, {
+        messageId: newInbound.id,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      conversations.appendMessage(identity, 'handoff-block-system', tenantA, conversation.id, {
+        direction: 'outbound',
+        senderType: 'system',
+        senderId: null,
+        externalId: 'handoff-system-bypass',
+        content: 'This must not bypass human ownership.',
+        metadata: {},
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      conversations.appendMessage(identity, 'handoff-human-reply', tenantA, conversation.id, {
+        direction: 'outbound',
+        senderType: 'agent',
+        senderId: null,
+        externalId: 'handoff-agent-human-reply',
+        content: 'نعم، أنا هنا للمساعدة.',
+        metadata: {},
+      }),
+    ).resolves.toMatchObject({ replayed: false });
+
+    const released = await conversations.release(
+      identity,
+      'handoff-release',
+      tenantA,
+      conversation.id,
+      {
+        expectedVersion: claimed.version,
+        reason: 'Shift ended',
+      },
+    );
+    expect(released.status).toBe('needs_human');
+    expect(released.assignedToUserId).toBeNull();
+    expect(released.activeHandoff).toMatchObject({
+      id: handoffReply.handoffId,
+      status: 'pending',
+    });
+    await expect(
+      conversations.appendMessage(identity, 'handoff-unowned-reply', tenantA, conversation.id, {
+        direction: 'outbound',
+        senderType: 'agent',
+        senderId: null,
+        externalId: 'handoff-unowned-agent-reply',
+        content: 'This must not be sent.',
+        metadata: {},
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    const reclaimed = await conversations.claim(
+      identity,
+      'handoff-reclaim',
+      tenantA,
+      conversation.id,
+      { expectedVersion: released.version },
+    );
+    const resumed = await conversations.transition(
+      identity,
+      'handoff-resume-bot',
+      tenantA,
+      conversation.id,
+      {
+        expectedVersion: reclaimed.version,
+        targetStatus: 'bot',
+        reason: 'Safe automation can continue',
+      },
+    );
+    expect(resumed.status).toBe('bot');
+    expect(resumed.activeHandoff).toBeNull();
+    expect(resumed.handoffs[0]).toMatchObject({
+      id: handoffReply.handoffId,
+      status: 'resolved',
+      resolution: 'returned_to_bot',
+    });
+    expect(resumed.handoffs[0]?.resolutionSeconds).not.toBeNull();
+
+    const resolvedMetrics = await conversations.getHandoffMetrics(
+      identity,
+      'handoff-metrics-resolved',
+      tenantA,
+    );
+    expect(resolvedMetrics.resolved).toBeGreaterThanOrEqual(1);
+    expect(resolvedMetrics.averageFirstResponseSeconds).not.toBeNull();
+    expect(resolvedMetrics.averageResolutionSeconds).not.toBeNull();
   });
 
   it('persists a grounded static agent run and replays the same customer turn once', async () => {

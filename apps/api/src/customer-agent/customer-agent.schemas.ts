@@ -37,6 +37,7 @@ export const storedCustomerAgentReplySchema = z
     toolCallIds: z.array(z.string().uuid()).max(20),
     groundingValidated: z.boolean(),
     handoffReason: z.string().max(500).nullable(),
+    handoffId: z.string().uuid().nullable().default(null),
     draftOrderId: z.string().uuid().nullable(),
     orderId: z.string().uuid().nullable(),
     orderNumber: z.string().max(80).nullable(),

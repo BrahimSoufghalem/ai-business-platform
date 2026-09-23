@@ -11,7 +11,8 @@
 5. المسارات المباشرة تنفذ أدوات موثقة دون LLM؛ المسارات المركبة تمر عبر AI Gateway.
 6. يتحقق Grounding verifier من كل Claim ومن Tool Call الذي يثبته.
 7. يحفظ `ai_runs` و`ai_tool_calls` قبل إرجاع الرد، ثم تحفظ رسالة البوت مع `agentRunId`.
-8. إعادة الطلب لنفس `messageId` تعيد الرسالة المخزنة ولا تنشئ ردًا جديدًا.
+8. إذا كانت النتيجة Handoff، ينفذ أمر `request_human_handoff` داخل معاملة واحدة: يحفظ التحويل والملخص المنقح، يخطر العميل، وينقل المحادثة إلى `needs_human`.
+9. إعادة الطلب لنفس `messageId` تعيد الرسالة والتحويل المخزنين ولا تنشئ ردًا جديدًا.
 
 طلبات الشراء والتعديل والإلغاء والتأكيد تستخدم مسارًا حتميًا إضافيًا موثقًا في [Conversation-to-Order](CONVERSATION_ORDER_FLOW.md). هذا المسار لا يستدعي LLM.
 
@@ -35,7 +36,7 @@ Content-Type: application/json
 - النص الآمن المعاد للعميل.
 - `productId` و`variantId` فقط عندما ظهرا في نتيجة Tool.
 - الأدلة: نوع الحقيقة واسم Tool ومعرّف Tool Call.
-- `groundingValidated`, `handoffReason` و`replayed`.
+- `groundingValidated`, `handoffReason`, `handoffId` و`replayed`.
 - `draftOrderId`, `orderId` و`orderNumber` عندما ينتج الـTurn مسودة أو طلبًا.
 
 ## Routing
@@ -59,8 +60,11 @@ Content-Type: application/json
 - `find_knowledge` — يعيد المعرفة المنشورة داخل Envelope يحمل `trust: untrusted_content` و`embeddedInstructions: ignore`.
 - `evaluate_price_offer` — يقيّم عرض السعر ويعيد قرارًا مرتبطًا بإصدار القاعدة المنشور.
 - `get_draft_order`, `create_or_update_draft_order`, `submit_draft_order`, `confirm_draft_order`, `cancel_draft_order` — تدير دورة الطلب داخل حدود المحادثة.
+- `request_human_handoff` — يسجل التحويل، يوقف البوت ويرسل إشعار العميل والموظف مرة واحدة.
 
 كل Tool لها Input/Output schema مغلق، Intent allow-list، مهلة مستقلة وسياق Tenant/Conversation/Correlation ثابت لا يستطيع النموذج تغييره.
+
+تفاصيل الأسباب والملخص الآمن والملكية والقياسات موجودة في [Human Handoff](HUMAN_HANDOFF.md).
 
 ## عقد Grounding
 
@@ -118,5 +122,4 @@ AI_PROVIDER_TIMEOUT_MS=15000
 ## حدود هذه المرحلة
 
 - المسار الآلي يدير سطر Variant واحدًا؛ تعديل مسودة متعددة العناصر يتحول لموظف.
-- إنشاء سجل Handoff وتعيينه وإيقاف البوت نهائيًا يبقى ضمن مسار Human Handoff اللاحق.
 - إلغاء Order مؤكّد لا ينفذ آليًا؛ يحول الطلب لموظف.

@@ -51,3 +51,5 @@ pnpm --filter @ai-business/db test:integration
 pnpm --filter @ai-business/customer-agent test
 TEST_DATABASE_URL=postgresql://... pnpm --filter @ai-business/api test:integration
 ```
+
+اختبارات Handoff التكاملية تتحقق من RLS، الملخص المنقح، Idempotency، توقف البوت، حصرية ملكية الموظف، `claim/release` والعودة الآمنة إلى البوت. يجب تطبيق أحدث migration على قاعدة اختبار فارغة قبل تشغيلها.

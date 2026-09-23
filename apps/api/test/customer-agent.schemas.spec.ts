@@ -38,11 +38,31 @@ describe('customer-agent API schemas', () => {
         toolCallIds: ['10000000-0000-4000-8000-000000000002'],
         groundingValidated: true,
         handoffReason: null,
+        handoffId: null,
         draftOrderId: null,
         orderId: null,
         orderNumber: null,
       }).success,
     ).toBe(true);
+    expect(
+      storedCustomerAgentReplySchema.parse({
+        runId: id,
+        intent: 'faq',
+        route: 'static',
+        status: 'reply',
+        text: 'مرحبًا.',
+        confidence: 1,
+        productId: null,
+        variantId: null,
+        evidence: [],
+        toolCallIds: [],
+        groundingValidated: true,
+        handoffReason: null,
+        draftOrderId: null,
+        orderId: null,
+        orderNumber: null,
+      }).handoffId,
+    ).toBeNull();
     expect(
       storedCustomerAgentReplySchema.safeParse({
         runId: id,

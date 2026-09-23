@@ -3,6 +3,7 @@ import type { VerifiedIdentity } from '@ai-business/auth';
 import type { AiRunTraceRecord, AiRunTraceSink } from '@ai-business/ai-gateway';
 import { CustomerAgentRuntime, type CustomerAgentReply } from '@ai-business/customer-agent';
 import { persistAiRunTrace, withTenantTransaction } from '@ai-business/db';
+import { classifyCustomerAgentHandoff } from '@ai-business/domain';
 import { AgentSettingsService } from '../configuration/agent-settings.service.js';
 import { BusinessRuleService } from '../configuration/business-rule.service.js';
 import { KnowledgeService } from '../configuration/knowledge.service.js';
@@ -155,6 +156,28 @@ export class CustomerAgentService {
         })),
       },
     });
+    if (agentReply.status === 'handoff') {
+      const handoff = await this.conversations.requestHandoff(
+        identity,
+        correlationId,
+        tenantId,
+        conversationId,
+        {
+          sourceMessageId: input.messageId,
+          sourceRunId: agentReply.runId,
+          reason: classifyCustomerAgentHandoff(agentReply.handoffReason),
+          intent: agentReply.intent,
+          customerNotice: agentReply.text,
+          idempotencyKey: `agent-handoff:${input.messageId}`,
+          agentReply,
+        },
+      );
+      return {
+        ...handoff.agentReply,
+        messageId: handoff.customerMessage.id,
+        replayed: handoff.customerMessage.replayed ?? false,
+      };
+    }
     const message = await this.conversations.appendMessage(
       identity,
       correlationId,

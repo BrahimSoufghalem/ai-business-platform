@@ -281,6 +281,7 @@ function createReply(input: {
     toolCallIds: (input.traces ?? []).map((trace) => trace.id),
     groundingValidated: input.groundingValidated ?? true,
     handoffReason: input.handoffReason ?? null,
+    handoffId: null,
     draftOrderId: input.draftOrderId ?? null,
     orderId: input.orderId ?? null,
     orderNumber: input.orderNumber ?? null,

@@ -354,6 +354,7 @@ export interface CustomerAgentReply {
   readonly toolCallIds: readonly string[];
   readonly groundingValidated: boolean;
   readonly handoffReason: string | null;
+  readonly handoffId: string | null;
   readonly draftOrderId: string | null;
   readonly orderId: string | null;
   readonly orderNumber: string | null;
