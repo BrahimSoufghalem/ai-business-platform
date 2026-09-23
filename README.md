@@ -2,7 +2,7 @@
 
 منصة SaaS متعددة المتاجر تجمع إدارة المنتجات والمخزون والطلبات والعملاء مع وكيل AI لخدمة العملاء، مع إبقاء النظام وقواعد العمل مصدر الحقيقة الوحيد.
 
-> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون والطلبات والعملاء والمحادثات والقواعد والمعرفة وAI Gateway، وأضيف Grounded Customer Agent داخلي مع تدفق طلب حتمي ومسار Human Handoff كامل يوقف البوت، ينشئ ملخصًا منقحًا ويدعم الاستلام والتحرير والقياسات.
+> **الحالة الحالية:** اكتملت طبقات MVP الداخلية حتى Pilot hardening: الأساس والكتالوج والمخزون والطلبات والعملاء والمحادثات والقواعد والمعرفة وAI Gateway وGrounded Customer Agent وتدفق الطلب وHuman Handoff. أضيفت لوحة Pilot، correlation traces، تنبيهات التشغيل، rate limits، فحوصات الأمن، seed محدود وتجربة backup/restore. يبقى تفعيل Pilot الحقيقي مشروطًا بتوقيع Go/No-Go.
 
 ## مبادئ المنتج
 
@@ -46,6 +46,10 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 | [Grounded Customer Agent](docs/CUSTOMER_AGENT.md)                | runtime والـGrounding والذاكرة والتقييم       |
 | [Conversation-to-Order](docs/CONVERSATION_ORDER_FLOW.md)         | إنشاء المسودة والتفاوض والتأكيد الآمن         |
 | [Human Handoff](docs/HUMAN_HANDOFF.md)                           | التحويل، الملخص الآمن، الملكية والقياسات      |
+| [Pilot Operations](docs/PILOT_OPERATIONS.md)                     | Dashboard والتنبيهات والتتبع والنسخ وrunbooks |
+| [Pilot Security Review](docs/PILOT_SECURITY_REVIEW.md)           | الأدلة الأمنية والمخاطر المتبقية              |
+| [Pilot Training](docs/PILOT_TRAINING.md)                         | تدريب المستخدم وتمرين القبول                  |
+| [Pilot Go/No-Go](docs/PILOT_GO_NO_GO.md)                         | بوابة إلزامية قبل البيانات الحقيقية           |
 | [AI agent design](docs/AI_AGENT.md)                              | السياق الديناميكي، الأدوات، الحماية والتقييم  |
 | [Roadmap](docs/ROADMAP.md)                                       | خطة تنفيذ MVP على مراحل ومسار حرج             |
 | [Security & privacy](docs/SECURITY.md)                           | ضوابط العزل والوصول والأسرار والتدقيق         |
@@ -120,3 +124,7 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - [Conversation-to-Order](docs/CONVERSATION_ORDER_FLOW.md): progressive detail collection, policy-backed negotiation, exact summaries, explicit approval, stock rechecks and idempotent confirmation.
 
 - [Human Handoff](docs/HUMAN_HANDOFF.md): structured reasons, redacted context, exactly-once escalation, exclusive human ownership, release/resume controls and response/resolution metrics.
+
+- [Pilot Operations](docs/PILOT_OPERATIONS.md): owner/manager KPI dashboard, stock/handoff/tool alerts, correlation trace, structured request logs, rate limits, bounded idempotent seed import, backup/restore drill and incident runbooks.
+
+- [Pilot Go/No-Go](docs/PILOT_GO_NO_GO.md): required security, recovery, privacy, training and first-day evidence before any real customer data is enabled.

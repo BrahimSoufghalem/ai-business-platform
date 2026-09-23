@@ -15,7 +15,8 @@
     "build": "tsc -p tsconfig.json",
     "lint": "eslint src test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:pilot-gate": "vitest run test/intent-router.spec.ts test/memory-safety.spec.ts test/runtime.spec.ts"
   },
   "dependencies": {
     "@ai-business/ai-gateway": "workspace:*",

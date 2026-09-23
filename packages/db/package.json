@@ -18,12 +18,13 @@
     "test": "vitest run --passWithNoTests",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "pilot:seed": "node dist/pilot-seed.js",
     "test:integration": "vitest run test/rls.integration.spec.ts"
   },
   "dependencies": {
     "@ai-business/ai-gateway": "workspace:*",
     "@ai-business/domain": "workspace:*",
-    "drizzle-orm": "^0.44.5",
+    "drizzle-orm": "^0.45.2",
     "postgres": "^3.4.7"
   },
   "devDependencies": {

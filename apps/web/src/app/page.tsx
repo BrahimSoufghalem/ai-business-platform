@@ -25,6 +25,9 @@ export default function HomePage() {
         <a className="secondary-link" href="/settings/configuration">
           مركز القواعد والمعرفة
         </a>
+        <a className="secondary-link" href="/dashboard">
+          لوحة تشغيل Pilot
+        </a>
       </section>
 
       <section className="grid" aria-label="أسس المنصة">

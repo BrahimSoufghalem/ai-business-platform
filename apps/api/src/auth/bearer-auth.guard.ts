@@ -32,13 +32,14 @@ export class BearerAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    request.correlationId = selectCorrelationId(request.headers['x-correlation-id']);
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_ROUTE, [
       context.getHandler(),
       context.getClass(),
     ]);
     if (isPublic) return true;
 
-    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = extractBearerToken(request.headers.authorization);
     if (!token) {
       throw new UnauthorizedException('A valid Bearer token is required.');
@@ -46,7 +47,6 @@ export class BearerAuthGuard implements CanActivate {
 
     try {
       request.identity = await this.verifier.verify(token);
-      request.correlationId = selectCorrelationId(request.headers['x-correlation-id']);
       return true;
     } catch {
       throw new UnauthorizedException('The access token is invalid or expired.');

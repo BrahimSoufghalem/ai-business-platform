@@ -1,0 +1,26 @@
+{
+  "tenantId": "11111111-1111-4111-8111-111111111111",
+  "identitySubject": "replace-with-verified-oidc-subject",
+  "currency": "DZD",
+  "productType": {
+    "name": "Pilot products",
+    "slug": "pilot-products"
+  },
+  "location": {
+    "code": "MAIN",
+    "name": "Main stock",
+    "isDefault": true
+  },
+  "products": [
+    {
+      "code": "PILOT-001",
+      "name": "Synthetic Pilot Product",
+      "description": "Synthetic catalog data only. Replace before a real launch.",
+      "sku": "PILOT-SKU-001",
+      "variantName": "Default",
+      "price": 12500,
+      "onHand": 8,
+      "reorderPoint": 2
+    }
+  ]
+}

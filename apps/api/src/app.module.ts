@@ -8,6 +8,7 @@ import { CustomerAgentModule } from './customer-agent/customer-agent.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
 import { InventoryModule } from './inventory/inventory.module.js';
+import { OperationsModule } from './operations/operations.module.js';
 import { OrderModule } from './orders/order.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { StorageModule } from './storage/storage.module.js';
@@ -27,6 +28,7 @@ import { TenantModule } from './tenants/tenant.module.js';
     ConversationModule,
     ConfigurationModule,
     CustomerAgentModule,
+    OperationsModule,
   ],
   controllers: [HealthController],
 })

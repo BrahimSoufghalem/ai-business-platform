@@ -31,6 +31,26 @@ pnpm test
 pnpm build
 ```
 
+## Pilot gates
+
+```bash
+# Secret patterns, production dependency audit, Arabic eval and red-team suites
+pnpm pilot:gates
+
+# Limited, idempotent synthetic catalog/inventory seed
+DATABASE_URL=postgresql://... \
+PILOT_SEED_CONFIRM=SEED_EXISTING_TENANT \
+pnpm pilot:seed scripts/pilot-seed.example.json
+
+# Backup/restore drill against a disposable database whose name contains "restore"
+BACKUP_DATABASE_URL=postgresql://.../source \
+RESTORE_DATABASE_URL=postgresql://.../pilot_restore \
+RESTORE_DRILL_CONFIRM=ERASE_RESTORE_DATABASE \
+pnpm restore:drill
+```
+
+راجع [Pilot Operations](PILOT_OPERATIONS.md) للإجراءات الآمنة و[Go/No-Go](PILOT_GO_NO_GO.md) قبل البيانات الحقيقية.
+
 ## Security rule
 
 A tenant ID may only originate from verified authentication claims or a verified integration credential. Never trust `tenant_id` from a request body, query parameter, arbitrary header, job payload, or AI output. Every background job must carry a validated tenant context and correlation ID.
@@ -53,3 +73,5 @@ TEST_DATABASE_URL=postgresql://... pnpm --filter @ai-business/api test:integrati
 ```
 
 اختبارات Handoff التكاملية تتحقق من RLS، الملخص المنقح، Idempotency، توقف البوت، حصرية ملكية الموظف، `claim/release` والعودة الآمنة إلى البوت. يجب تطبيق أحدث migration على قاعدة اختبار فارغة قبل تشغيلها.
+
+اختبارات Operations التكاملية تتحقق من مؤشرات الطلبات والمبيعات والمخزون والتحويل وAI، التنبيهات الثلاثة، trace من الرسالة إلى Tool والطلب، وعزل متجر آخر.
