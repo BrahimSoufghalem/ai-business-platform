@@ -97,7 +97,7 @@ jobs:
       - run: pnpm --filter @ai-business/db test:integration
       - run: pnpm --filter @ai-business/api test:integration
 
-  security-gates:
+  secret-scan:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -110,7 +110,37 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm pilot:gates
+      - run: pnpm security:secrets
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:audit
+
+  agent-evaluations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ai-business/customer-agent test:pilot-gate
 
   backup-restore-drill:
     runs-on: ubuntu-latest
