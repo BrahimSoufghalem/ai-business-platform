@@ -19,7 +19,7 @@
     "pilot:seed": "pnpm --filter @ai-business/db build && pnpm --filter @ai-business/db pilot:seed",
     "security:secrets": "node scripts/scan-secrets.mjs",
     "security:audit": "pnpm audit --prod --audit-level=high",
-    "pilot:gates": "pnpm security:secrets && pnpm security:audit && pnpm --filter @ai-business/customer-agent test:pilot-gate",
+    "pilot:gates": "pnpm security:secrets && pnpm security:audit && pnpm --filter @ai-business/ai-gateway build && pnpm --filter @ai-business/customer-agent test:pilot-gate",
     "backup": "bash scripts/backup.sh",
     "restore:drill": "bash scripts/restore-drill.sh"
   },
