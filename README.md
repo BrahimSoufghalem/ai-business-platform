@@ -50,6 +50,7 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 | [Pilot Security Review](docs/PILOT_SECURITY_REVIEW.md)           | الأدلة الأمنية والمخاطر المتبقية              |
 | [Pilot Training](docs/PILOT_TRAINING.md)                         | تدريب المستخدم وتمرين القبول                  |
 | [Pilot Go/No-Go](docs/PILOT_GO_NO_GO.md)                         | بوابة إلزامية قبل البيانات الحقيقية           |
+| [Deployment](docs/DEPLOYMENT.md)                                 | نشر staging على Vercel وSupabase              |
 | [AI agent design](docs/AI_AGENT.md)                              | السياق الديناميكي، الأدوات، الحماية والتقييم  |
 | [Roadmap](docs/ROADMAP.md)                                       | خطة تنفيذ MVP على مراحل ومسار حرج             |
 | [Security & privacy](docs/SECURITY.md)                           | ضوابط العزل والوصول والأسرار والتدقيق         |

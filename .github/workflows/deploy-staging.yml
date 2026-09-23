@@ -1,0 +1,101 @@
+name: Deploy staging
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment: staging
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+      - name: Validate deployment credentials
+        env:
+          MIGRATION_URL: ${{ secrets.SUPABASE_STAGING_MIGRATION_DATABASE_URL }}
+          API_PROJECT_ID: ${{ secrets.VERCEL_API_STAGING_PROJECT_ID }}
+          WEB_PROJECT_ID: ${{ secrets.VERCEL_WEB_STAGING_PROJECT_ID }}
+        run: |
+          for name in VERCEL_TOKEN VERCEL_ORG_ID MIGRATION_URL API_PROJECT_ID WEB_PROJECT_ID; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Missing required staging secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Apply staging migrations
+        env:
+          MIGRATION_DATABASE_URL: ${{ secrets.SUPABASE_STAGING_MIGRATION_DATABASE_URL }}
+        run: pnpm db:migrate
+
+      - name: Deploy API staging project
+        id: api
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_API_STAGING_PROJECT_ID }}
+        run: |
+          pnpm dlx vercel@59.25.4 pull --yes --environment=production \
+            --token "$VERCEL_TOKEN" --cwd apps/api
+          pnpm dlx vercel@59.25.4 build --prod \
+            --token "$VERCEL_TOKEN" --cwd apps/api
+          url="$(pnpm dlx vercel@59.25.4 deploy --prebuilt --prod \
+            --token "$VERCEL_TOKEN" --cwd apps/api | tail -n 1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy web staging project
+        id: web
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_WEB_STAGING_PROJECT_ID }}
+        run: |
+          pnpm dlx vercel@59.25.4 pull --yes --environment=production \
+            --token "$VERCEL_TOKEN" --cwd apps/web
+          pnpm dlx vercel@59.25.4 build --prod \
+            --token "$VERCEL_TOKEN" --cwd apps/web
+          url="$(pnpm dlx vercel@59.25.4 deploy --prebuilt --prod \
+            --token "$VERCEL_TOKEN" --cwd apps/web | tail -n 1)"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test deployments
+        env:
+          API_URL: ${{ steps.api.outputs.url }}
+          WEB_URL: ${{ steps.web.outputs.url }}
+        run: |
+          headers=()
+          if [[ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]]; then
+            headers=(-H "x-vercel-protection-bypass: $VERCEL_AUTOMATION_BYPASS_SECRET")
+          fi
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            "${headers[@]}" "$API_URL/api/health/live"
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            "${headers[@]}" "$API_URL/api/health/ready"
+          curl --fail --silent --show-error --retry 5 --retry-all-errors \
+            "${headers[@]}" "$WEB_URL/" >/dev/null
+          {
+            echo "### Staging deployment"
+            echo "- API: $API_URL"
+            echo "- Web: $WEB_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
