@@ -8,7 +8,7 @@ export const customerAgentReplyRequestSchema = z
 
 const evidenceSchema = z
   .object({
-    kind: z.enum(['product', 'price', 'availability', 'knowledge', 'rule']),
+    kind: z.enum(['product', 'price', 'availability', 'knowledge', 'rule', 'draft', 'order']),
     toolName: z.string().min(1).max(80),
     toolCallId: z.string().uuid(),
   })
@@ -37,6 +37,9 @@ export const storedCustomerAgentReplySchema = z
     toolCallIds: z.array(z.string().uuid()).max(20),
     groundingValidated: z.boolean(),
     handoffReason: z.string().max(500).nullable(),
+    draftOrderId: z.string().uuid().nullable(),
+    orderId: z.string().uuid().nullable(),
+    orderNumber: z.string().max(80).nullable(),
   })
   .strict();
 

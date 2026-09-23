@@ -8,7 +8,7 @@ import type {
 
 const claimSchema = z
   .object({
-    kind: z.enum(['product', 'price', 'availability', 'knowledge', 'rule']),
+    kind: z.enum(['product', 'price', 'availability', 'knowledge', 'rule', 'draft', 'order']),
     text: z.string().trim().min(1).max(500),
     evidenceCallId: z.string().trim().min(1).max(200),
   })
@@ -43,7 +43,7 @@ export const customerAgentModelOutputJsonSchema = {
         properties: {
           kind: {
             type: 'string',
-            enum: ['product', 'price', 'availability', 'knowledge', 'rule'],
+            enum: ['product', 'price', 'availability', 'knowledge', 'rule', 'draft', 'order'],
           },
           text: { type: 'string', minLength: 1, maxLength: 500 },
           evidenceCallId: { type: 'string', minLength: 1, maxLength: 200 },
@@ -55,12 +55,19 @@ export const customerAgentModelOutputJsonSchema = {
   required: ['action', 'text', 'confidence', 'selectedProductId', 'selectedVariantId', 'claims'],
 } as const;
 
-const requiredToolByClaim: Readonly<Record<CustomerAgentClaimKind, string>> = {
-  product: 'search_products',
-  price: 'get_effective_price',
-  availability: 'get_variant_availability',
-  knowledge: 'find_knowledge',
-  rule: 'get_business_rules',
+const requiredToolsByClaim: Readonly<Record<CustomerAgentClaimKind, readonly string[]>> = {
+  product: ['search_products'],
+  price: ['get_effective_price', 'evaluate_price_offer'],
+  availability: ['get_variant_availability'],
+  knowledge: ['find_knowledge'],
+  rule: ['get_business_rules'],
+  draft: [
+    'get_draft_order',
+    'create_or_update_draft_order',
+    'submit_draft_order',
+    'cancel_draft_order',
+  ],
+  order: ['confirm_draft_order'],
 };
 
 function collectIds(value: unknown, result = new Set<string>()): Set<string> {
@@ -101,8 +108,8 @@ export function verifyGroundedCustomerOutput(
       reasons.push(`missing_evidence:${claim.kind}`);
       return [];
     }
-    const requiredTool = requiredToolByClaim[claim.kind];
-    if (call.name !== requiredTool) {
+    const requiredTools = requiredToolsByClaim[claim.kind];
+    if (!requiredTools.includes(call.name)) {
       reasons.push(`wrong_evidence_tool:${claim.kind}`);
       return [];
     }

@@ -3,6 +3,7 @@ import {
   InvalidOrderTransitionError,
   assertOrderTransition,
   calculateOrderTotals,
+  calculateQuotedOrderTotals,
   canTransitionOrder,
 } from '../src/index.js';
 
@@ -51,6 +52,30 @@ describe('order lifecycle', () => {
       calculateOrderTotals([{ unitPrice: '10', quantity: 1 }], {
         discountAmount: '10.01',
       }),
+    ).toThrow('cannot exceed');
+  });
+
+  it('derives negotiated discounts from list and final unit prices', () => {
+    expect(
+      calculateQuotedOrderTotals(
+        [
+          { listPrice: '100.00', unitPrice: '90.00', quantity: 2 },
+          { listPrice: '50.00', unitPrice: '50.00', quantity: 1 },
+        ],
+        { shippingAmount: '5.00' },
+      ),
+    ).toEqual({
+      lines: [
+        { listPrice: '100.00', unitPrice: '90.00', quantity: 2, lineTotal: '180.00' },
+        { listPrice: '50.00', unitPrice: '50.00', quantity: 1, lineTotal: '50.00' },
+      ],
+      subtotal: '250.00',
+      discountAmount: '20.00',
+      shippingAmount: '5.00',
+      total: '235.00',
+    });
+    expect(() =>
+      calculateQuotedOrderTotals([{ listPrice: '100.00', unitPrice: '101.00', quantity: 1 }]),
     ).toThrow('cannot exceed');
   });
 });

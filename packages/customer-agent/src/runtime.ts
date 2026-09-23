@@ -14,6 +14,8 @@ import {
 import { buildCustomerAgentContext } from './context-builder.js';
 import type {
   CustomerAgentDynamicContext,
+  CustomerAgentConversation,
+  CustomerDraftOrderResult,
   CustomerAgentEvidence,
   CustomerAgentIntentDecision,
   CustomerAgentMessage,
@@ -25,9 +27,12 @@ import type {
   CustomerAgentSettings,
   CustomerAgentTurnInput,
   DirectExecutionResult,
+  ConfirmDraftResult,
+  DraftMutationResult,
   EffectivePriceResult,
   KnowledgeSearchResult,
   ProductSearchResult,
+  PriceOfferResult,
   VariantAvailabilityResult,
 } from './contracts.js';
 import {
@@ -36,6 +41,15 @@ import {
   verifyGroundedCustomerOutput,
 } from './grounding.js';
 import { routeCustomerIntent } from './intent-router.js';
+import {
+  extractCustomerPhone,
+  extractRequestedPrice,
+  extractRequestedQuantity,
+  extractShippingAddress,
+  isAmbiguousOrderAffirmation,
+  isExplicitOrderConfirmation,
+  requestsVariantChange,
+} from './order-intent.js';
 import { CUSTOMER_AGENT_PROMPT_VERSION } from './prompt.js';
 import { assessCustomerInput, boundedUntrustedText } from './safety.js';
 import {
@@ -177,10 +191,25 @@ function statusFromAction(
 function toolsForIntent(intent: AiIntent): readonly string[] {
   if (intent === 'faq') return ['find_knowledge'];
   if (intent === 'pricing') {
-    return ['search_products', 'get_effective_price', 'get_business_rules'];
+    return ['search_products', 'get_effective_price', 'evaluate_price_offer', 'get_business_rules'];
   }
   if (intent === 'product_discovery') {
     return ['search_products', 'get_variant_availability', 'find_knowledge'];
+  }
+  if (intent === 'order_draft') {
+    return [
+      'search_products',
+      'get_variant_availability',
+      'get_effective_price',
+      'evaluate_price_offer',
+      'get_draft_order',
+      'create_or_update_draft_order',
+      'submit_draft_order',
+      'cancel_draft_order',
+    ];
+  }
+  if (intent === 'order_confirmation') {
+    return ['get_draft_order', 'confirm_draft_order'];
   }
   return [...CUSTOMER_AGENT_TOOL_NAMES];
 }
@@ -229,12 +258,15 @@ function createReply(input: {
   status: CustomerAgentReply['status'];
   text: string;
   confidence?: number;
-  productId?: string | null;
-  variantId?: string | null;
+  productId?: string | null | undefined;
+  variantId?: string | null | undefined;
   evidence?: readonly CustomerAgentEvidence[];
   traces?: readonly AiToolCallTrace[];
   groundingValidated?: boolean;
-  handoffReason?: string | null;
+  handoffReason?: string | null | undefined;
+  draftOrderId?: string | null | undefined;
+  orderId?: string | null | undefined;
+  orderNumber?: string | null | undefined;
 }): CustomerAgentReply {
   return {
     runId: input.runId,
@@ -249,7 +281,157 @@ function createReply(input: {
     toolCallIds: (input.traces ?? []).map((trace) => trace.id),
     groundingValidated: input.groundingValidated ?? true,
     handoffReason: input.handoffReason ?? null,
+    draftOrderId: input.draftOrderId ?? null,
+    orderId: input.orderId ?? null,
+    orderNumber: input.orderNumber ?? null,
   };
+}
+
+function evidenceKindForTool(name: string): CustomerAgentEvidence['kind'] | null {
+  if (name === 'search_products') return 'product';
+  if (name === 'get_variant_availability') return 'availability';
+  if (name === 'get_effective_price' || name === 'evaluate_price_offer') return 'price';
+  if (name === 'get_business_rules') return 'rule';
+  if (name === 'find_knowledge') return 'knowledge';
+  if (name === 'confirm_draft_order') return 'order';
+  if (
+    name === 'get_draft_order' ||
+    name === 'create_or_update_draft_order' ||
+    name === 'submit_draft_order' ||
+    name === 'cancel_draft_order'
+  ) {
+    return 'draft';
+  }
+  return null;
+}
+
+function evidenceFromTraces(traces: readonly AiToolCallTrace[]): CustomerAgentEvidence[] {
+  return traces.flatMap((trace) => {
+    if (trace.status !== 'succeeded') return [];
+    const kind = evidenceKindForTool(trace.name);
+    return kind ? [outputEvidence(kind, trace)] : [];
+  });
+}
+
+function orderText(
+  language: CustomerAgentSettings['language'],
+  key:
+    | 'no_active_draft'
+    | 'already_confirmed'
+    | 'cancelled'
+    | 'out_of_stock'
+    | 'stale'
+    | 'confirm_exactly'
+    | 'ask_phone'
+    | 'ask_address'
+    | 'cannot_confirm',
+): string {
+  const messages = {
+    ar: {
+      no_active_draft: 'لا توجد مسودة طلب نشطة في هذه المحادثة.',
+      already_confirmed: 'تم تأكيد هذا الطلب بالفعل.',
+      cancelled: 'تم إلغاء مسودة الطلب.',
+      out_of_stock: 'الكمية المطلوبة غير متوفرة حاليًا. اختر كمية أقل أو خيارًا آخر.',
+      stale: 'تغيّرت بيانات الطلب أو السعر. أعد إرسال التعديل لأعرض ملخصًا محدثًا.',
+      confirm_exactly: 'للتأكيد الصريح، أرسل حرفيًا: أؤكد الطلب',
+      ask_phone: 'أرسل رقم الهاتف لإكمال مسودة الطلب.',
+      ask_address: 'أرسل عنوان التوصيل بهذه الصيغة: العنوان: …، المدينة: …',
+      cannot_confirm: 'لا يمكن تأكيد الطلب قبل اكتمال البيانات وعرض الملخص النهائي.',
+    },
+    fr: {
+      no_active_draft: 'Aucun brouillon de commande actif dans cette conversation.',
+      already_confirmed: 'Cette commande est déjà confirmée.',
+      cancelled: 'Le brouillon de commande a été annulé.',
+      out_of_stock:
+        'La quantité demandée n’est plus disponible. Choisissez une quantité inférieure ou une autre option.',
+      stale:
+        'La commande ou le prix a changé. Renvoyez la modification pour obtenir un nouveau récapitulatif.',
+      confirm_exactly: 'Pour confirmer explicitement, envoyez exactement : Je confirme la commande',
+      ask_phone: 'Envoyez votre numéro de téléphone pour compléter le brouillon.',
+      ask_address: 'Envoyez l’adresse ainsi : adresse: …, ville: …',
+      cannot_confirm:
+        'La commande ne peut pas être confirmée avant les informations et le récapitulatif final.',
+    },
+    en: {
+      no_active_draft: 'There is no active draft order in this conversation.',
+      already_confirmed: 'This order has already been confirmed.',
+      cancelled: 'The draft order was cancelled.',
+      out_of_stock:
+        'The requested quantity is no longer available. Choose a lower quantity or another option.',
+      stale: 'The order or price changed. Send the change again for an updated summary.',
+      confirm_exactly: 'To confirm explicitly, send exactly: Confirm the order',
+      ask_phone: 'Send your phone number to complete the draft.',
+      ask_address: 'Send the address as: address: …, city: …',
+      cannot_confirm:
+        'The order cannot be confirmed until the details are complete and the final summary is shown.',
+    },
+  } as const;
+  return messages[language][key];
+}
+
+function draftSummary(
+  draft: CustomerDraftOrderResult,
+  language: CustomerAgentSettings['language'],
+): string {
+  const lines = draft.items.map((item) => {
+    const variant = item.variantName ? ` (${item.variantName})` : '';
+    return `${item.quantity} × ${item.productName}${variant} — ${item.unitPrice} ${item.currency}`;
+  });
+  if (language === 'fr') {
+    return [
+      'Récapitulatif final :',
+      ...lines.map((line) => `- ${line}`),
+      `Total : ${draft.total} ${draft.currency}.`,
+      'Pour confirmer, envoyez exactement : Je confirme la commande',
+    ].join('\n');
+  }
+  if (language === 'en') {
+    return [
+      'Final order summary:',
+      ...lines.map((line) => `- ${line}`),
+      `Total: ${draft.total} ${draft.currency}.`,
+      'To confirm, send exactly: Confirm the order',
+    ].join('\n');
+  }
+  return [
+    'ملخص الطلب النهائي:',
+    ...lines.map((line) => `- ${line}`),
+    `الإجمالي: ${draft.total} ${draft.currency}.`,
+    'للتأكيد أرسل حرفيًا: أؤكد الطلب',
+  ].join('\n');
+}
+
+function confirmedOrderText(
+  order: NonNullable<ConfirmDraftResult['order']>,
+  language: CustomerAgentSettings['language'],
+): string {
+  if (language === 'fr') {
+    return `Commande confirmée sous le numéro ${order.orderNumber}. Total : ${order.total} ${order.currency}.`;
+  }
+  if (language === 'en') {
+    return `Order ${order.orderNumber} is confirmed. Total: ${order.total} ${order.currency}.`;
+  }
+  return `تم تأكيد الطلب رقم ${order.orderNumber}. الإجمالي: ${order.total} ${order.currency}.`;
+}
+
+function negotiationText(
+  offer: PriceOfferResult,
+  product: CustomerAgentProduct,
+  variant: CustomerAgentProductVariant,
+  language: CustomerAgentSettings['language'],
+): string {
+  if (offer.outcome === 'counter' && offer.decidedPrice) {
+    if (language === 'fr') {
+      return `Je peux proposer ${offer.decidedPrice} ${offer.currency}. Si vous acceptez, envoyez : Je veux commander ${product.name} ${variant.name ?? variant.sku} au prix de ${offer.decidedPrice} ${offer.currency}.`;
+    }
+    if (language === 'en') {
+      return `I can offer ${offer.decidedPrice} ${offer.currency}. If you accept, send: I want to order ${product.name} ${variant.name ?? variant.sku} at ${offer.decidedPrice} ${offer.currency}.`;
+    }
+    return `يمكنني تقديم ${offer.decidedPrice} ${offer.currency}. إذا وافقت فأرسل: أريد شراء ${product.name} ${variant.name ?? variant.sku} بسعر ${offer.decidedPrice} ${offer.currency}.`;
+  }
+  if (language === 'fr') return 'Cette offre est hors de la politique de prix publiée.';
+  if (language === 'en') return 'That offer is outside the published pricing policy.';
+  return 'هذا العرض خارج سياسة السعر المنشورة.';
 }
 
 export class CustomerAgentRuntime {
@@ -314,6 +496,518 @@ export class CustomerAgentRuntime {
       toolCalls: traces,
       createdAt: new Date(startedAt).toISOString(),
     });
+  }
+
+  async #order(
+    context: CustomerAgentDynamicContext,
+    decision: CustomerAgentIntentDecision,
+    input: {
+      readonly tenantId: string;
+      readonly conversation: CustomerAgentConversation;
+      readonly correlationId: string;
+      readonly message: CustomerAgentMessage;
+    },
+    registry: ToolRegistry,
+    startedAt: number,
+  ): Promise<DirectExecutionResult> {
+    const runId = this.#idFactory();
+    const state: ToolExecutionState = {
+      registry,
+      runId,
+      tenantId: input.tenantId,
+      conversationId: input.conversation.id,
+      correlationId: input.correlationId,
+      intent: decision.intent,
+      traces: [],
+    };
+    const language = context.settings.language;
+    const finish = async (
+      reply: CustomerAgentReply,
+      traceHandoffReason: AiHandoffReason | null = null,
+    ): Promise<DirectExecutionResult> => {
+      const handoff = reply.status === 'handoff';
+      await this.#recordLocalTurn(
+        {
+          tenantId: input.tenantId,
+          conversationId: input.conversation.id,
+          correlationId: input.correlationId,
+          safeInput: context,
+        },
+        reply,
+        state.traces,
+        startedAt,
+        handoff ? 'handoff' : 'completed',
+        handoff ? (traceHandoffReason ?? 'safety_fallback') : null,
+      );
+      return { reply, toolCalls: state.traces };
+    };
+    const replyFor = (
+      text: string,
+      status: CustomerAgentReply['status'],
+      options: {
+        readonly productId?: string | null | undefined;
+        readonly variantId?: string | null | undefined;
+        readonly draftOrderId?: string | null | undefined;
+        readonly orderId?: string | null | undefined;
+        readonly orderNumber?: string | null | undefined;
+        readonly handoffReason?: string | null | undefined;
+      } = {},
+    ): CustomerAgentReply =>
+      createReply({
+        runId,
+        decision,
+        status,
+        text,
+        confidence: status === 'reply' ? 1 : 0.9,
+        productId: options.productId,
+        variantId: options.variantId,
+        draftOrderId: options.draftOrderId,
+        orderId: options.orderId,
+        orderNumber: options.orderNumber,
+        handoffReason: options.handoffReason,
+        evidence: evidenceFromTraces(state.traces),
+        traces: state.traces,
+      });
+
+    try {
+      let draft: CustomerDraftOrderResult | null = null;
+      if (input.conversation.linkedDraftOrderId) {
+        const loaded = await executeLocalTool(
+          state,
+          'get_draft_order',
+          { draftOrderId: input.conversation.linkedDraftOrderId },
+          `${runId}:draft-load`,
+        );
+        draft = customerAgentToolSchemas.draftOrderOutputSchema.parse(
+          loaded.output,
+        ) as CustomerDraftOrderResult;
+      }
+
+      if (decision.reason === 'order_cancel') {
+        if (!draft) {
+          return finish(replyFor(orderText(language, 'no_active_draft'), 'clarification'));
+        }
+        if (draft.status === 'cancelled') {
+          return finish(
+            replyFor(orderText(language, 'cancelled'), 'reply', {
+              draftOrderId: draft.draftOrderId,
+            }),
+          );
+        }
+        if (draft.status === 'confirmed' || input.conversation.linkedOrderId) {
+          return finish(
+            replyFor(
+              language === 'ar'
+                ? 'الطلب مؤكد بالفعل؛ سأحوّل طلب الإلغاء إلى موظف.'
+                : language === 'fr'
+                  ? 'La commande est déjà confirmée ; je transfère la demande d’annulation.'
+                  : 'The order is already confirmed; I will transfer the cancellation request.',
+              'handoff',
+              {
+                draftOrderId: draft.draftOrderId,
+                orderId: input.conversation.linkedOrderId,
+                handoffReason: 'confirmed_order_cancellation',
+              },
+            ),
+          );
+        }
+        const cancelledCall = await executeLocalTool(
+          state,
+          'cancel_draft_order',
+          {
+            draftOrderId: draft.draftOrderId,
+            expectedVersion: draft.version,
+            reason: 'customer_requested_cancellation',
+          },
+          `${runId}:draft-cancel`,
+        );
+        const cancelled = customerAgentToolSchemas.draftMutationOutputSchema.parse(
+          cancelledCall.output,
+        ) as DraftMutationResult;
+        if (cancelled.outcome !== 'saved' || !cancelled.draft) {
+          return finish(
+            replyFor(orderText(language, 'stale'), 'clarification', {
+              draftOrderId: draft.draftOrderId,
+            }),
+          );
+        }
+        return finish(
+          replyFor(orderText(language, 'cancelled'), 'reply', {
+            draftOrderId: cancelled.draft.draftOrderId,
+          }),
+        );
+      }
+
+      if (decision.reason === 'order_confirm') {
+        if (!draft) {
+          return finish(replyFor(orderText(language, 'no_active_draft'), 'clarification'));
+        }
+        if (!isExplicitOrderConfirmation(input.message.content)) {
+          return finish(
+            replyFor(orderText(language, 'confirm_exactly'), 'clarification', {
+              draftOrderId: draft.draftOrderId,
+            }),
+          );
+        }
+        if (draft.status !== 'awaiting_confirmation' && !input.conversation.linkedOrderId) {
+          const text =
+            draft.status === 'confirmed'
+              ? orderText(language, 'already_confirmed')
+              : orderText(language, 'cannot_confirm');
+          return finish(replyFor(text, 'clarification', { draftOrderId: draft.draftOrderId }));
+        }
+        const confirmedCall = await executeLocalTool(
+          state,
+          'confirm_draft_order',
+          {
+            draftOrderId: draft.draftOrderId,
+            expectedVersion: draft.version,
+            approvalMessageId: input.message.id,
+            customerApproved: true,
+          },
+          `${runId}:draft-confirm`,
+        );
+        const confirmation = customerAgentToolSchemas.confirmDraftOutputSchema.parse(
+          confirmedCall.output,
+        ) as ConfirmDraftResult;
+        if (confirmation.outcome === 'confirmed' && confirmation.order) {
+          return finish(
+            replyFor(confirmedOrderText(confirmation.order, language), 'reply', {
+              productId: confirmation.order.items[0]?.productId ?? null,
+              variantId: confirmation.order.items[0]?.variantId ?? null,
+              draftOrderId: draft.draftOrderId,
+              orderId: confirmation.order.orderId,
+              orderNumber: confirmation.order.orderNumber,
+            }),
+          );
+        }
+        const text =
+          confirmation.outcome === 'out_of_stock'
+            ? orderText(language, 'out_of_stock')
+            : confirmation.outcome === 'stale'
+              ? orderText(language, 'stale')
+              : orderText(language, 'cannot_confirm');
+        return finish(replyFor(text, 'clarification', { draftOrderId: draft.draftOrderId }));
+      }
+
+      if (draft && isAmbiguousOrderAffirmation(input.message.content)) {
+        const text =
+          draft.status === 'awaiting_confirmation'
+            ? `${draftSummary(draft, language)}\n${orderText(language, 'confirm_exactly')}`
+            : orderText(language, 'cannot_confirm');
+        return finish(
+          replyFor(text, 'clarification', {
+            productId: draft.items[0]?.productId ?? null,
+            variantId: draft.items[0]?.variantId ?? null,
+            draftOrderId: draft.draftOrderId,
+          }),
+        );
+      }
+
+      if (draft && (draft.status === 'cancelled' || draft.status === 'confirmed')) {
+        if (decision.reason === 'order_update') {
+          return finish(
+            replyFor(orderText(language, 'no_active_draft'), 'clarification', {
+              draftOrderId: draft.draftOrderId,
+              orderId: input.conversation.linkedOrderId,
+            }),
+          );
+        }
+        draft = null;
+      }
+
+      if (!draft && decision.reason === 'order_update') {
+        return finish(replyFor(orderText(language, 'no_active_draft'), 'clarification'));
+      }
+
+      let product: CustomerAgentProduct;
+      let variant: CustomerAgentProductVariant;
+      let pricingDecisionId: string | null;
+      const currentItem = draft?.items[0] ?? null;
+      if (draft && draft.items.length !== 1) {
+        return finish(
+          replyFor(
+            language === 'ar'
+              ? 'تعديل الطلبات متعددة العناصر يحتاج إلى موظف.'
+              : language === 'fr'
+                ? 'La modification d’une commande à plusieurs articles nécessite un conseiller.'
+                : 'A multi-item order change needs a team member.',
+            'handoff',
+            {
+              draftOrderId: draft.draftOrderId,
+              handoffReason: 'multi_item_order_change',
+            },
+          ),
+        );
+      }
+
+      const needsProductLookup =
+        !currentItem ||
+        requestsVariantChange(input.message.content) ||
+        extractRequestedPrice(input.message.content) !== null;
+      if (needsProductLookup) {
+        const query =
+          decision.query.length > 0
+            ? decision.query
+            : (currentItem?.productName ?? context.currentMessage);
+        if (
+          query.trim().length === 0 &&
+          input.conversation.linkedProductId === null &&
+          currentItem === null
+        ) {
+          return finish(replyFor(localText(language, 'ask_product'), 'clarification'));
+        }
+        const productsCall = await executeLocalTool(
+          state,
+          'search_products',
+          {
+            query,
+            productId: currentItem?.productId ?? input.conversation.linkedProductId,
+            limit: 5,
+          },
+          `${runId}:order-products`,
+        );
+        const products = customerAgentToolSchemas.searchProductsOutputSchema.parse(
+          productsCall.output,
+        ) as ProductSearchResult;
+        if (products.items.length === 0) {
+          return finish(replyFor(localText(language, 'not_found'), 'clarification'));
+        }
+        if (products.items.length > 1) {
+          return finish(
+            replyFor(
+              `${localText(language, 'choose_product')} ${listNames(products.items)}`,
+              'clarification',
+            ),
+          );
+        }
+        const selectedProduct = products.items[0];
+        if (!selectedProduct) throw new Error('validated_product_missing');
+        const selectedVariant = selectVariant(selectedProduct, input.message.content);
+        if (!selectedVariant && currentItem && !requestsVariantChange(input.message.content)) {
+          const existing = selectedProduct.variants.find(
+            (candidate) => candidate.id === currentItem.variantId,
+          );
+          if (!existing) throw new Error('draft_variant_missing_from_product');
+          product = selectedProduct;
+          variant = existing;
+        } else {
+          if (!selectedVariant) {
+            const variantNames = selectedProduct.variants.map((item) => ({
+              name: item.name ?? item.sku,
+            }));
+            return finish(
+              replyFor(
+                `${localText(language, 'choose_variant')} ${listNames(variantNames)}`,
+                'clarification',
+                { productId: selectedProduct.id, draftOrderId: draft?.draftOrderId },
+              ),
+            );
+          }
+          product = selectedProduct;
+          variant = selectedVariant;
+        }
+      } else {
+        if (!currentItem) throw new Error('draft_item_missing');
+        product = {
+          id: currentItem.productId,
+          code: '',
+          name: currentItem.productName,
+          description: null,
+          customAttributes: {},
+          variants: [],
+        };
+        variant = {
+          id: currentItem.variantId,
+          sku: currentItem.sku,
+          name: currentItem.variantName,
+          attributes: {},
+        };
+      }
+
+      const quantity =
+        extractRequestedQuantity(input.message.content) ??
+        currentItem?.quantity ??
+        decision.requestedQuantity;
+      pricingDecisionId =
+        currentItem?.variantId === variant.id ? (currentItem.pricingDecisionId ?? null) : null;
+
+      const availabilityCall = await executeLocalTool(
+        state,
+        'get_variant_availability',
+        { variantId: variant.id, quantity },
+        `${runId}:order-availability`,
+      );
+      const availability = customerAgentToolSchemas.availabilityOutputSchema.parse(
+        availabilityCall.output,
+      ) as VariantAvailabilityResult;
+      if (!availability.available) {
+        return finish(
+          replyFor(orderText(language, 'out_of_stock'), 'clarification', {
+            productId: product.id,
+            variantId: variant.id,
+            draftOrderId: draft?.draftOrderId,
+          }),
+        );
+      }
+
+      const requestedPrice = extractRequestedPrice(input.message.content);
+      if (requestedPrice !== null) {
+        const offerCall = await executeLocalTool(
+          state,
+          'evaluate_price_offer',
+          {
+            productId: product.id,
+            variantId: variant.id,
+            requestedPrice,
+          },
+          `${runId}:price-offer`,
+        );
+        const offer = customerAgentToolSchemas.evaluatePriceOfferOutputSchema.parse(
+          offerCall.output,
+        ) as PriceOfferResult;
+        if (offer.outcome === 'accept' && offer.pricingDecisionId && offer.decidedPrice) {
+          pricingDecisionId = offer.pricingDecisionId;
+        } else {
+          const handoff = offer.outcome === 'handoff';
+          return finish(
+            replyFor(
+              negotiationText(offer, product, variant, language),
+              handoff ? 'handoff' : 'clarification',
+              {
+                productId: product.id,
+                variantId: variant.id,
+                draftOrderId: draft?.draftOrderId,
+                handoffReason: handoff ? 'pricing_policy_handoff' : null,
+              },
+            ),
+          );
+        }
+      } else if (!currentItem || currentItem.variantId !== variant.id) {
+        const priceCall = await executeLocalTool(
+          state,
+          'get_effective_price',
+          { productId: product.id, variantId: variant.id },
+          `${runId}:order-price`,
+        );
+        const price = customerAgentToolSchemas.effectivePriceOutputSchema.parse(
+          priceCall.output,
+        ) as EffectivePriceResult;
+        pricingDecisionId = price.pricingDecisionId;
+      }
+
+      const mutationCall = await executeLocalTool(
+        state,
+        'create_or_update_draft_order',
+        {
+          draftOrderId: draft?.draftOrderId ?? null,
+          expectedVersion: draft?.version ?? null,
+          variantId: variant.id,
+          quantity,
+          pricingDecisionId,
+          customerPhone: extractCustomerPhone(input.message.content),
+          shippingAddress: extractShippingAddress(input.message.content),
+        },
+        `${runId}:draft-save`,
+      );
+      const mutation = customerAgentToolSchemas.draftMutationOutputSchema.parse(
+        mutationCall.output,
+      ) as DraftMutationResult;
+      if (mutation.outcome !== 'saved' || !mutation.draft) {
+        const text =
+          mutation.outcome === 'out_of_stock'
+            ? orderText(language, 'out_of_stock')
+            : orderText(language, 'stale');
+        return finish(
+          replyFor(text, 'clarification', {
+            productId: product.id,
+            variantId: variant.id,
+            draftOrderId: draft?.draftOrderId,
+          }),
+        );
+      }
+      draft = mutation.draft;
+      if (draft.missingFields.includes('customer_phone')) {
+        return finish(
+          replyFor(orderText(language, 'ask_phone'), 'clarification', {
+            productId: product.id,
+            variantId: variant.id,
+            draftOrderId: draft.draftOrderId,
+          }),
+        );
+      }
+      if (draft.missingFields.includes('shipping_address')) {
+        return finish(
+          replyFor(orderText(language, 'ask_address'), 'clarification', {
+            productId: product.id,
+            variantId: variant.id,
+            draftOrderId: draft.draftOrderId,
+          }),
+        );
+      }
+      if (draft.status === 'draft') {
+        const submittedCall = await executeLocalTool(
+          state,
+          'submit_draft_order',
+          { draftOrderId: draft.draftOrderId, expectedVersion: draft.version },
+          `${runId}:draft-submit`,
+        );
+        const submitted = customerAgentToolSchemas.draftMutationOutputSchema.parse(
+          submittedCall.output,
+        ) as DraftMutationResult;
+        if (submitted.outcome !== 'saved' || !submitted.draft) {
+          const text =
+            submitted.outcome === 'out_of_stock'
+              ? orderText(language, 'out_of_stock')
+              : orderText(language, 'stale');
+          return finish(
+            replyFor(text, 'clarification', {
+              productId: product.id,
+              variantId: variant.id,
+              draftOrderId: draft.draftOrderId,
+            }),
+          );
+        }
+        draft = submitted.draft;
+      }
+      if (!draft.readyForConfirmation || draft.status !== 'awaiting_confirmation') {
+        return finish(
+          replyFor(orderText(language, 'cannot_confirm'), 'clarification', {
+            productId: product.id,
+            variantId: variant.id,
+            draftOrderId: draft.draftOrderId,
+          }),
+        );
+      }
+      return finish(
+        replyFor(draftSummary(draft, language), 'reply', {
+          productId: product.id,
+          variantId: variant.id,
+          draftOrderId: draft.draftOrderId,
+        }),
+      );
+    } catch (error) {
+      if (error instanceof AiToolExecutionError) state.traces.push(error.trace);
+      const reason: AiHandoffReason =
+        error instanceof AiToolExecutionError && error.trace.status === 'rejected'
+          ? 'tool_rejected'
+          : 'tool_failed';
+      return finish(
+        createReply({
+          runId,
+          decision: { ...decision, route: 'handoff' },
+          status: 'handoff',
+          text: localText(language, 'tool_failure'),
+          traces: state.traces,
+          evidence: evidenceFromTraces(state.traces),
+          groundingValidated: false,
+          handoffReason: reason,
+          draftOrderId: input.conversation.linkedDraftOrderId,
+          orderId: input.conversation.linkedOrderId,
+        }),
+        reason,
+      );
+    }
   }
 
   async #direct(
@@ -631,7 +1325,25 @@ export class CustomerAgentRuntime {
     if (input.conversation.status !== 'bot') {
       throw new Error('Customer agent can only run while the conversation is assigned to the bot.');
     }
-    const decision = routeCustomerIntent(message.content);
+    let decision = routeCustomerIntent(message.content);
+    if (
+      input.conversation.linkedDraftOrderId &&
+      decision.route !== 'handoff' &&
+      decision.reason !== 'order_confirm' &&
+      decision.reason !== 'order_cancel' &&
+      (extractCustomerPhone(message.content) !== null ||
+        extractShippingAddress(message.content) !== null ||
+        extractRequestedQuantity(message.content) !== null ||
+        extractRequestedPrice(message.content) !== null ||
+        isAmbiguousOrderAffirmation(message.content))
+    ) {
+      decision = {
+        ...decision,
+        intent: 'order_draft',
+        route: 'direct_query',
+        reason: 'order_update',
+      };
+    }
     const registry = createCustomerAgentToolRegistry(this.#options.dataSource);
     const language = languageFromText(message.content);
 
@@ -675,6 +1387,22 @@ export class CustomerAgentRuntime {
       linkedProductId: input.conversation.linkedProductId,
       signal: new AbortController().signal,
     });
+
+    if (decision.intent === 'order_draft' || decision.intent === 'order_confirmation') {
+      const result = await this.#order(
+        context,
+        decision,
+        {
+          tenantId: input.tenantId,
+          conversation: input.conversation,
+          correlationId: input.correlationId,
+          message,
+        },
+        registry,
+        startedAt,
+      );
+      return result.reply;
+    }
 
     if (decision.route === 'static') {
       const reply = createReply({

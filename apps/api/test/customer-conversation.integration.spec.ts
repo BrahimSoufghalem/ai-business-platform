@@ -9,6 +9,7 @@ import { CustomerAgentService } from '../src/customer-agent/customer-agent.servi
 import { CustomerService } from '../src/customers/customer.service.js';
 import { DatabaseService } from '../src/database/database.service.js';
 import { InventoryService } from '../src/inventory/inventory.service.js';
+import { OrderService } from '../src/orders/order.service.js';
 import { ProductService } from '../src/products/product.service.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
@@ -60,6 +61,7 @@ describeWithDatabase('customer and conversation services', () => {
       conversations,
       new ProductService(database),
       new InventoryService(database),
+      new OrderService(database),
       new BusinessRuleService(database),
       new KnowledgeService(database),
       new AgentSettingsService(database),

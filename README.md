@@ -2,7 +2,7 @@
 
 منصة SaaS متعددة المتاجر تجمع إدارة المنتجات والمخزون والطلبات والعملاء مع وكيل AI لخدمة العملاء، مع إبقاء النظام وقواعد العمل مصدر الحقيقة الوحيد.
 
-> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون والطلبات والعملاء والمحادثات والقواعد والمعرفة وAI Gateway، وأضيف Grounded Customer Agent داخلي مع Router وأدوات قراءة وذاكرة محدودة واختبارات عربية.
+> **الحالة الحالية:** تنفيذ MVP جارٍ. اكتملت طبقات الأساس والكتالوج والمخزون والطلبات والعملاء والمحادثات والقواعد والمعرفة وAI Gateway، وأضيف Grounded Customer Agent داخلي مع تدفق حتمي يحوّل المحادثة إلى Draft Order، يفاوض ضمن القواعد، ويؤكد الطلب صراحة وبشكل idempotent.
 
 ## مبادئ المنتج
 
@@ -44,6 +44,7 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 | [Rules & Knowledge](docs/RULES_KNOWLEDGE_API.md)                 | قواعد السعر والمعرفة وإعدادات الوكيل بإصدارات |
 | [AI Gateway](docs/AI_GATEWAY.md)                                 | المزودون وRouting والأدوات والميزانية والتتبع |
 | [Grounded Customer Agent](docs/CUSTOMER_AGENT.md)                | runtime والـGrounding والذاكرة والتقييم       |
+| [Conversation-to-Order](docs/CONVERSATION_ORDER_FLOW.md)         | إنشاء المسودة والتفاوض والتأكيد الآمن         |
 | [AI agent design](docs/AI_AGENT.md)                              | السياق الديناميكي، الأدوات، الحماية والتقييم  |
 | [Roadmap](docs/ROADMAP.md)                                       | خطة تنفيذ MVP على مراحل ومسار حرج             |
 | [Security & privacy](docs/SECURITY.md)                           | ضوابط العزل والوصول والأسرار والتدقيق         |
@@ -114,3 +115,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - [AI Gateway](docs/AI_GATEWAY.md): provider-neutral adapters, task/cost/speed routing, validated tools and outputs, retries, circuit breaking, budgets, handoff and redacted run telemetry.
 
 - [Grounded Customer Agent](docs/CUSTOMER_AGENT.md): deterministic/direct/model routing, store-scoped read tools, variant clarification, bounded memory, prompt-injection blocking, evidence validation and Arabic evaluation cases.
+
+- [Conversation-to-Order](docs/CONVERSATION_ORDER_FLOW.md): progressive detail collection, policy-backed negotiation, exact summaries, explicit approval, stock rechecks and idempotent confirmation.

@@ -122,6 +122,10 @@ sequenceDiagram
 
 المسار المباشر يظل داخل Tool Registry ويسجل Run؛ لا يقرأ الـruntime قاعدة البيانات مباشرة. الرد الذي يفشل التحقق يتحول قبل التسليم ويسجل Outcome النهائي كـHandoff.
 
+### Conversation-to-Order
+
+طلبات الشراء تدخل مسارًا حتميًا داخل `@ai-business/customer-agent`: اختيار Variant، فحص المخزون، تقييم السعر، إنشاء/تحديث Draft، جمع الهاتف والعنوان، إرسال المسودة، ثم انتظار موافقة صريحة. Adapter الـAPI يقيد كل أداة بالمحادثة والعميل والمتجر، و`OrderService` ينفذ التأكيد والحجوزات داخل معاملة واحدة. ترتبط الخصومات بقرار سعر محفوظ، وتمنع قيود قاعدة البيانات كتابة سعر مخفض بلا قرار مطابق. التفاصيل في [Conversation-to-Order](CONVERSATION_ORDER_FLOW.md).
+
 ## API وEvents
 
 - REST/JSON مناسب للـMVP؛ OpenAPI يولد clients وأنواع الطلبات.

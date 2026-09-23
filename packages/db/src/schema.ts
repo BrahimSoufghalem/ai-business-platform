@@ -683,9 +683,11 @@ export const draftOrderItems = pgTable(
       .$type<Record<string, unknown>>()
       .notNull(),
     quantity: integer('quantity').notNull(),
+    listPrice: numeric('list_price', { precision: 14, scale: 2 }).notNull(),
     unitPrice: numeric('unit_price', { precision: 14, scale: 2 }).notNull(),
     lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
     currency: text('currency').notNull(),
+    pricingDecisionId: uuid('pricing_decision_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -717,7 +719,12 @@ export const draftOrderItems = pgTable(
     ),
     index('draft_order_items_tenant_draft_idx').on(table.tenantId, table.draftOrderId),
     check('draft_order_items_quantity_positive', sql`${table.quantity} > 0`),
+    check('draft_order_items_list_price_nonnegative', sql`${table.listPrice} >= 0`),
     check('draft_order_items_unit_price_nonnegative', sql`${table.unitPrice} >= 0`),
+    check(
+      'draft_order_items_unit_price_not_above_list',
+      sql`${table.unitPrice} <= ${table.listPrice}`,
+    ),
     check(
       'draft_order_items_line_total_consistent',
       sql`${table.lineTotal} = ${table.unitPrice} * ${table.quantity}`,
@@ -806,9 +813,11 @@ export const orderItems = pgTable(
       .$type<Record<string, unknown>>()
       .notNull(),
     quantity: integer('quantity').notNull(),
+    listPrice: numeric('list_price', { precision: 14, scale: 2 }).notNull(),
     unitPrice: numeric('unit_price', { precision: 14, scale: 2 }).notNull(),
     lineTotal: numeric('line_total', { precision: 14, scale: 2 }).notNull(),
     currency: text('currency').notNull(),
+    pricingDecisionId: uuid('pricing_decision_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -840,7 +849,9 @@ export const orderItems = pgTable(
     uniqueIndex('order_items_tenant_id_id_uq').on(table.tenantId, table.id),
     index('order_items_tenant_order_idx').on(table.tenantId, table.orderId),
     check('order_items_quantity_positive', sql`${table.quantity} > 0`),
+    check('order_items_list_price_nonnegative', sql`${table.listPrice} >= 0`),
     check('order_items_unit_price_nonnegative', sql`${table.unitPrice} >= 0`),
+    check('order_items_unit_price_not_above_list', sql`${table.unitPrice} <= ${table.listPrice}`),
     check(
       'order_items_line_total_consistent',
       sql`${table.lineTotal} = ${table.unitPrice} * ${table.quantity}`,
@@ -1232,6 +1243,7 @@ export const pricingDecisions = pgTable(
     ruleVersionId: uuid('rule_version_id').notNull(),
     ruleVersion: integer('rule_version').notNull(),
     productId: uuid('product_id'),
+    variantId: uuid('variant_id'),
     conversationId: uuid('conversation_id'),
     currency: text('currency').notNull(),
     listPrice: numeric('list_price', { precision: 14, scale: 2 }).notNull(),
@@ -1263,6 +1275,11 @@ export const pricingDecisions = pgTable(
       name: 'pricing_decisions_tenant_product_fk',
     }).onDelete('restrict'),
     foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [productVariants.tenantId, productVariants.id],
+      name: 'pricing_decisions_tenant_variant_fk',
+    }).onDelete('restrict'),
+    foreignKey({
       columns: [table.tenantId, table.conversationId],
       foreignColumns: [conversations.tenantId, conversations.id],
       name: 'pricing_decisions_tenant_conversation_fk',
@@ -1271,6 +1288,11 @@ export const pricingDecisions = pgTable(
     index('pricing_decisions_tenant_set_created_idx').on(
       table.tenantId,
       table.ruleSetId,
+      table.createdAt,
+    ),
+    index('pricing_decisions_tenant_variant_created_idx').on(
+      table.tenantId,
+      table.variantId,
       table.createdAt,
     ),
     check('pricing_decisions_rule_version_positive', sql`${table.ruleVersion} > 0`),

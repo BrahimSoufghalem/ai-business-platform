@@ -13,6 +13,8 @@
 7. يحفظ `ai_runs` و`ai_tool_calls` قبل إرجاع الرد، ثم تحفظ رسالة البوت مع `agentRunId`.
 8. إعادة الطلب لنفس `messageId` تعيد الرسالة المخزنة ولا تنشئ ردًا جديدًا.
 
+طلبات الشراء والتعديل والإلغاء والتأكيد تستخدم مسارًا حتميًا إضافيًا موثقًا في [Conversation-to-Order](CONVERSATION_ORDER_FLOW.md). هذا المسار لا يستدعي LLM.
+
 ## الـAPI
 
 ```http
@@ -34,6 +36,7 @@ Content-Type: application/json
 - `productId` و`variantId` فقط عندما ظهرا في نتيجة Tool.
 - الأدلة: نوع الحقيقة واسم Tool ومعرّف Tool Call.
 - `groundingValidated`, `handoffReason` و`replayed`.
+- `draftOrderId`, `orderId` و`orderNumber` عندما ينتج الـTurn مسودة أو طلبًا.
 
 ## Routing
 
@@ -54,6 +57,8 @@ Content-Type: application/json
 - `get_effective_price` — يقرأ سعر الكتالوج ويطبق إصدار قاعدة التسعير المنشور عند وجود قاعدة افتراضية صالحة.
 - `get_business_rules` — يعيد القواعد المنشورة فقط مع معرّف ورقم الإصدار.
 - `find_knowledge` — يعيد المعرفة المنشورة داخل Envelope يحمل `trust: untrusted_content` و`embeddedInstructions: ignore`.
+- `evaluate_price_offer` — يقيّم عرض السعر ويعيد قرارًا مرتبطًا بإصدار القاعدة المنشور.
+- `get_draft_order`, `create_or_update_draft_order`, `submit_draft_order`, `confirm_draft_order`, `cancel_draft_order` — تدير دورة الطلب داخل حدود المحادثة.
 
 كل Tool لها Input/Output schema مغلق، Intent allow-list، مهلة مستقلة وسياق Tenant/Conversation/Correlation ثابت لا يستطيع النموذج تغييره.
 
@@ -112,4 +117,6 @@ AI_PROVIDER_TIMEOUT_MS=15000
 
 ## حدود هذه المرحلة
 
-هذه المرحلة للقراءة والردود الموثقة فقط. إنشاء/تعديل Draft Order والتأكيد والتفاوض التنفيذي ضمن المرحلة التالية، وإنشاء Handoff وتعيينه وإيقاف البوت نهائيًا ضمن مسار Human Handoff اللاحق.
+- المسار الآلي يدير سطر Variant واحدًا؛ تعديل مسودة متعددة العناصر يتحول لموظف.
+- إنشاء سجل Handoff وتعيينه وإيقاف البوت نهائيًا يبقى ضمن مسار Human Handoff اللاحق.
+- إلغاء Order مؤكّد لا ينفذ آليًا؛ يحول الطلب لموظف.

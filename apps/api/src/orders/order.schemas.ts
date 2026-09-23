@@ -28,6 +28,7 @@ const draftItemSchema = z.object({
   variantId: uuidSchema,
   locationId: uuidSchema,
   quantity: z.number().int().positive().max(1_000_000),
+  pricingDecisionId: uuidSchema.nullable().optional(),
 });
 
 export const orderEntityIdSchema = uuidSchema;

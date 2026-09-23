@@ -7,7 +7,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { VerifiedIdentity } from '@ai-business/auth';
-import { calculateOrderTotals, type DraftOrderStatus, type OrderStatus } from '@ai-business/domain';
+import {
+  calculateQuotedOrderTotals,
+  type DraftOrderStatus,
+  type OrderStatus,
+} from '@ai-business/domain';
 import {
   DraftOrderNotFoundError,
   DraftOrderStateError,
@@ -52,9 +56,11 @@ export interface DraftOrderItemView {
   readonly sku: string;
   readonly variantAttributes: Readonly<Record<string, unknown>>;
   readonly quantity: number;
+  readonly listPrice: string;
   readonly unitPrice: string;
   readonly lineTotal: string;
   readonly currency: string;
+  readonly pricingDecisionId: string | null;
 }
 
 export interface DraftOrderView {
@@ -93,9 +99,11 @@ export interface OrderItemView {
   readonly sku: string;
   readonly variantAttributes: Readonly<Record<string, unknown>>;
   readonly quantity: number;
+  readonly listPrice: string;
   readonly unitPrice: string;
   readonly lineTotal: string;
   readonly currency: string;
+  readonly pricingDecisionId: string | null;
 }
 
 export interface OrderTransitionView {
@@ -146,9 +154,11 @@ interface QuotedDraftItem {
   readonly sku: string;
   readonly variantAttributes: Record<string, unknown>;
   readonly quantity: number;
+  readonly listPrice: string;
   readonly unitPrice: string;
   readonly lineTotal: string;
   readonly currency: string;
+  readonly pricingDecisionId: string | null;
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -300,6 +310,7 @@ export class OrderService {
     transaction: TenantTransaction,
     tenantId: string,
     items: readonly DraftItemInput[],
+    conversationId: string | null = null,
   ): Promise<{
     readonly items: readonly QuotedDraftItem[];
     readonly currency: string;
@@ -328,7 +339,7 @@ export class OrderService {
           variantName: string | null;
           sku: string;
           variantAttributes: Record<string, unknown>;
-          unitPrice: string;
+          listPrice: string;
           currency: string;
         }[]
       >`
@@ -337,7 +348,7 @@ export class OrderService {
           location.id::text as "locationId", product.name as "productName",
           product.code as "productCode", variant.name as "variantName",
           variant.sku, variant.attributes as "variantAttributes",
-          coalesce(variant.price_override, product.base_price)::text as "unitPrice",
+          coalesce(variant.price_override, product.base_price)::text as "listPrice",
           product.currency
         from product_variants as variant
         join products as product
@@ -354,14 +365,74 @@ export class OrderService {
       if (!row) {
         throw new BadRequestException('An active variant and inventory location are required.');
       }
-      sourceRows.push({ ...row, quantity: item.quantity });
+      let unitPrice = row.listPrice;
+      let pricingDecisionId: string | null = null;
+      if (item.pricingDecisionId) {
+        const [decision] = await transaction<
+          {
+            id: string;
+            productId: string | null;
+            variantId: string | null;
+            conversationId: string | null;
+            currency: string;
+            listPrice: string;
+            decidedPrice: string | null;
+            outcome: 'accept' | 'counter' | 'handoff' | 'reject';
+            ruleStatus: 'draft' | 'published' | 'superseded';
+          }[]
+        >`
+          select
+            decision.id::text, decision.product_id::text as "productId",
+            decision.variant_id::text as "variantId",
+            decision.conversation_id::text as "conversationId",
+            decision.currency, decision.list_price::text as "listPrice",
+            decision.decided_price::text as "decidedPrice",
+            decision.outcome::text, version.status::text as "ruleStatus"
+          from pricing_decisions as decision
+          join business_rule_versions as version
+            on version.tenant_id = decision.tenant_id
+            and version.rule_set_id = decision.rule_set_id
+            and version.id = decision.rule_version_id
+          where decision.tenant_id = ${tenantId}
+            and decision.id = ${item.pricingDecisionId}
+          limit 1
+        `;
+        const conversationMatches =
+          conversationId === null
+            ? decision?.conversationId === null
+            : decision?.conversationId === conversationId;
+        if (
+          !decision ||
+          decision.productId !== row.productId ||
+          decision.variantId !== row.variantId ||
+          !conversationMatches ||
+          decision.currency !== row.currency ||
+          decision.listPrice !== row.listPrice ||
+          decision.decidedPrice === null ||
+          (decision.outcome !== 'accept' && decision.outcome !== 'counter') ||
+          decision.ruleStatus !== 'published'
+        ) {
+          throw new BadRequestException(
+            'A current accepted pricing decision is required for a negotiated item.',
+          );
+        }
+        unitPrice = decision.decidedPrice;
+        pricingDecisionId = decision.id;
+      }
+      sourceRows.push({
+        ...row,
+        quantity: item.quantity,
+        unitPrice,
+        pricingDecisionId,
+      });
     }
     const currency = sourceRows[0]?.currency;
     if (!currency || sourceRows.some((item) => item.currency !== currency)) {
       throw new BadRequestException('All draft items must use the same currency.');
     }
-    const totals = calculateOrderTotals(
+    const totals = calculateQuotedOrderTotals(
       sourceRows.map((item) => ({
+        listPrice: item.listPrice,
         unitPrice: item.unitPrice,
         quantity: item.quantity,
       })),
@@ -390,14 +461,15 @@ export class OrderService {
         insert into draft_order_items (
           tenant_id, draft_order_id, product_id, variant_id, location_id,
           product_name_snapshot, product_code_snapshot, variant_name_snapshot,
-          sku_snapshot, variant_attributes_snapshot, quantity, unit_price,
-          line_total, currency
+          sku_snapshot, variant_attributes_snapshot, quantity, list_price,
+          unit_price, line_total, currency, pricing_decision_id
         ) values (
           ${tenantId}, ${draftOrderId}, ${item.productId}, ${item.variantId},
           ${item.locationId}, ${item.productName}, ${item.productCode},
           ${item.variantName}, ${item.sku},
           ${transaction.json(jsonInput(item.variantAttributes))},
-          ${item.quantity}, ${item.unitPrice}, ${item.lineTotal}, ${item.currency}
+          ${item.quantity}, ${item.listPrice}, ${item.unitPrice}, ${item.lineTotal},
+          ${item.currency}, ${item.pricingDecisionId}
         )
       `;
     }
@@ -453,8 +525,9 @@ export class OrderService {
         location_id::text as "locationId", product_name_snapshot as "productName",
         product_code_snapshot as "productCode", variant_name_snapshot as "variantName",
         sku_snapshot as sku, variant_attributes_snapshot as "variantAttributes",
-        quantity, unit_price::text as "unitPrice", line_total::text as "lineTotal",
-        currency
+        quantity, list_price::text as "listPrice", unit_price::text as "unitPrice",
+        line_total::text as "lineTotal", currency,
+        pricing_decision_id::text as "pricingDecisionId"
       from draft_order_items
       where tenant_id = ${tenantId} and draft_order_id = ${draftOrderId}
       order by created_at, id
@@ -526,7 +599,9 @@ export class OrderService {
         product_name_snapshot as "productName", product_code_snapshot as "productCode",
         variant_name_snapshot as "variantName", sku_snapshot as sku,
         variant_attributes_snapshot as "variantAttributes", quantity,
-        unit_price::text as "unitPrice", line_total::text as "lineTotal", currency
+        list_price::text as "listPrice", unit_price::text as "unitPrice",
+        line_total::text as "lineTotal", currency,
+        pricing_decision_id::text as "pricingDecisionId"
       from order_items
       where tenant_id = ${tenantId} and order_id = ${orderId}
       order by created_at, id
@@ -563,6 +638,7 @@ export class OrderService {
     correlationId: string,
     candidateTenantId: string,
     input: CreateDraftOrderInput,
+    conversationId: string | null = null,
   ): Promise<DraftOrderView> {
     const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
     return withTenantTransaction(this.database.client, context, async (transaction) => {
@@ -570,7 +646,12 @@ export class OrderService {
       const customer = input.customerId
         ? await this.loadCustomerDefaults(transaction, context.tenantId, input.customerId)
         : null;
-      const quote = await this.quoteItems(transaction, context.tenantId, input.items);
+      const quote = await this.quoteItems(
+        transaction,
+        context.tenantId,
+        input.items,
+        conversationId,
+      );
       const [created] = await transaction<{ id: string }[]>`
         insert into draft_orders (
           tenant_id, customer_id, customer_name, customer_phone, customer_email,
@@ -596,6 +677,39 @@ export class OrderService {
       `;
       if (!created) throw new Error('Draft order insert returned no ID.');
       await this.insertDraftItems(transaction, context.tenantId, created.id, quote.items);
+      if (conversationId) {
+        if (!input.customerId) {
+          throw new BadRequestException('A conversation draft requires its linked customer.');
+        }
+        const productIds = new Set(quote.items.map((item) => item.productId));
+        const linkedProductId = productIds.size === 1 ? (quote.items[0]?.productId ?? null) : null;
+        const [linked] = await transaction<{ id: string }[]>`
+          update conversations as conversation
+          set
+            draft_order_id = ${created.id},
+            product_id = coalesce(${linkedProductId}::uuid, conversation.product_id),
+            version = conversation.version + 1,
+            updated_at = now()
+          where conversation.tenant_id = ${context.tenantId}
+            and conversation.id = ${conversationId}
+            and conversation.customer_id = ${input.customerId}
+            and conversation.status = 'bot'
+            and (
+              conversation.draft_order_id is null
+              or conversation.draft_order_id = ${created.id}
+              or exists (
+                select 1 from draft_orders as previous_draft
+                where previous_draft.tenant_id = conversation.tenant_id
+                  and previous_draft.id = conversation.draft_order_id
+                  and previous_draft.status in ('cancelled', 'confirmed')
+              )
+            )
+          returning conversation.id::text
+        `;
+        if (!linked) {
+          throw new ConflictException('Conversation changed or already has an active draft order.');
+        }
+      }
       await transaction`
         insert into audit_events (
           tenant_id, actor_type, actor_id, action, entity_type,
@@ -603,7 +717,11 @@ export class OrderService {
         ) values (
           ${context.tenantId}, 'user', ${identity.subject}, 'draft_order.created',
           'draft_order', ${created.id}, ${correlationId},
-          ${transaction.json({ itemCount: quote.items.length, total: quote.total })}
+          ${transaction.json({
+            itemCount: quote.items.length,
+            total: quote.total,
+            conversationId,
+          })}
         )
       `;
       const draft = await this.loadDraft(transaction, context.tenantId, created.id);
@@ -618,6 +736,7 @@ export class OrderService {
     candidateTenantId: string,
     draftOrderId: string,
     input: UpdateDraftOrderInput,
+    conversationId: string | null = null,
   ): Promise<DraftOrderView> {
     const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
     return withTenantTransaction(this.database.client, context, async (transaction) => {
@@ -649,7 +768,7 @@ export class OrderService {
           ? await this.loadCustomerDefaults(transaction, context.tenantId, nextCustomerId)
           : null;
       const quote = input.items
-        ? await this.quoteItems(transaction, context.tenantId, input.items)
+        ? await this.quoteItems(transaction, context.tenantId, input.items, conversationId)
         : {
             items: current.items,
             currency: current.currency,
@@ -876,6 +995,7 @@ export class OrderService {
     candidateTenantId: string,
     draftOrderId: string,
     input: ConfirmDraftOrderInput,
+    conversationId: string | null = null,
   ): Promise<OrderView> {
     const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
     try {
@@ -914,6 +1034,23 @@ export class OrderService {
               })}
             )
           `;
+        }
+        if (conversationId) {
+          const [linked] = await transaction<{ id: string }[]>`
+            update conversations
+            set
+              order_id = ${result.orderId},
+              version = version + case when order_id is distinct from ${result.orderId} then 1 else 0 end,
+              updated_at = now()
+            where tenant_id = ${context.tenantId}
+              and id = ${conversationId}
+              and draft_order_id = ${draftOrderId}
+              and (order_id is null or order_id = ${result.orderId})
+            returning id::text
+          `;
+          if (!linked) {
+            throw new ConflictException('Conversation changed before the order could be linked.');
+          }
         }
         const order = await this.loadOrder(transaction, context.tenantId, result.orderId);
         if (!order) throw new Error('Confirmed order could not be loaded.');

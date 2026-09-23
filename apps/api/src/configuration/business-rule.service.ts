@@ -55,6 +55,7 @@ export interface BusinessRuleSetView {
 export interface PersistedPriceDecision extends PriceDecision {
   readonly id: string;
   readonly productId: string | null;
+  readonly variantId: string | null;
   readonly conversationId: string | null;
   readonly createdAt: string;
 }
@@ -453,6 +454,18 @@ export class BusinessRuleService {
       `;
       if (!product) throw new NotFoundException('Decision product not found.');
     }
+    if (input.variantId) {
+      const [variant] = await transaction<{ id: string; productId: string }[]>`
+        select id::text, product_id::text as "productId"
+        from product_variants
+        where tenant_id = ${tenantId} and id = ${input.variantId}
+        limit 1
+      `;
+      if (!variant) throw new NotFoundException('Decision variant not found.');
+      if (input.productId && variant.productId !== input.productId) {
+        throw new BadRequestException('Decision variant does not belong to the product.');
+      }
+    }
     if (input.conversationId) {
       const [conversation] = await transaction<{ id: string }[]>`
         select id::text from conversations
@@ -506,11 +519,12 @@ export class BusinessRuleService {
       const [created] = await transaction<{ id: string; createdAt: Date }[]>`
         insert into pricing_decisions (
           tenant_id, rule_set_id, rule_version_id, rule_version,
-          product_id, conversation_id, currency, list_price,
+          product_id, variant_id, conversation_id, currency, list_price,
           requested_price, decided_price, outcome, reason, correlation_id
         ) values (
           ${context.tenantId}, ${ruleSetId}, ${published.id}, ${published.version},
-          ${input.productId ?? null}, ${input.conversationId ?? null},
+          ${input.productId ?? null}, ${input.variantId ?? null},
+          ${input.conversationId ?? null},
           ${decision.currency}, ${decision.listPrice}, ${decision.requestedPrice},
           ${decision.decidedPrice}, ${decision.outcome}, ${decision.reason},
           ${correlationId}
@@ -537,6 +551,7 @@ export class BusinessRuleService {
         ...decision,
         id: created.id,
         productId: input.productId ?? null,
+        variantId: input.variantId ?? null,
         conversationId: input.conversationId ?? null,
         createdAt: created.createdAt.toISOString(),
       };

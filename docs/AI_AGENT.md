@@ -33,10 +33,15 @@
 ### Command Tools
 
 - `create_or_update_draft_order(...)`
+- `evaluate_price_offer(product_id, variant_id, requested_price)`
+- `submit_draft_order(draft_id, expected_version)`
 - `confirm_draft_order(draft_id, customer_confirmation, idempotency_key)`
+- `cancel_draft_order(draft_id, expected_version, reason)`
 - `request_human_handoff(reason, summary)`
 
 Command Tools تنفذ authorization وvalidation والمعاملة؛ موافقة النموذج وحدها لا تكفي.
+
+التنفيذ الفعلي لمسار الطلب حتمي ولا يستدعي النموذج. راجع [Conversation-to-Order](CONVERSATION_ORDER_FLOW.md).
 
 ## سياسة التفاوض
 
@@ -45,6 +50,7 @@ Command Tools تنفذ authorization وvalidation والمعاملة؛ مواف�
 3. السعر النهائي يحسب داخل Domain service، لا داخل Prompt.
 4. أي طلب خارج النطاق يتحول لموظف أو يرفض بصياغة مهذبة حسب إعداد المتجر.
 5. جميع عروض السعر ترتبط بمدة صلاحية ونسخة القاعدة.
+6. الخصم في Draft/Order يحتاج `pricingDecisionId` مطابقًا؛ قاعدة البيانات ترفض أي خصم غير موثق.
 
 ## Routing والتكلفة
 

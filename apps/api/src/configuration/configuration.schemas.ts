@@ -97,6 +97,7 @@ export const evaluatePriceSchema = z
     listPrice: moneySchema,
     requestedPrice: moneySchema,
     productId: uuidSchema.nullable().optional(),
+    variantId: uuidSchema.nullable().optional(),
     conversationId: uuidSchema.nullable().optional(),
   })
   .strict();

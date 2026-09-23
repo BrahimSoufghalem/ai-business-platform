@@ -1,5 +1,13 @@
 import type { AiIntent } from '@ai-business/ai-gateway';
 import type { CustomerAgentIntentDecision } from './contracts.js';
+import {
+  extractRequestedQuantity,
+  extractRequestedPrice,
+  isExplicitOrderConfirmation,
+  isOrderCancellation,
+  isOrderChangeRequest,
+  isOrderPurchaseRequest,
+} from './order-intent.js';
 import { assessCustomerInput } from './safety.js';
 
 const arabicDiacritics = /[\u064B-\u065F\u0670]/gu;
@@ -125,6 +133,18 @@ const queryStopWords = new Set(
   [
     ...pricePhrases,
     ...availabilityPhrases,
+    'اريد',
+    'نحب',
+    'حاب',
+    'اشتري',
+    'شراء',
+    'نشري',
+    'نطلب',
+    'اطلب',
+    'acheter',
+    'commander',
+    'buy',
+    'order',
     'هل',
     'هو',
     'هي',
@@ -150,11 +170,7 @@ function extractQuery(value: string): string {
 }
 
 function requestedQuantity(value: string): number {
-  const normalizedDigits = value.replace(/[٠-٩]/gu, (digit) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)));
-  const match = normalizedDigits.match(/(?:عدد|كميه|quantity|qty|x)\s*[:x-]?\s*(\d{1,3})/iu);
-  if (!match?.[1]) return 1;
-  const amount = Number(match[1]);
-  return Number.isSafeInteger(amount) && amount >= 1 && amount <= 100 ? amount : 1;
+  return extractRequestedQuantity(value) ?? 1;
 }
 
 function decision(
@@ -179,6 +195,18 @@ export function routeCustomerIntent(message: string): CustomerAgentIntentDecisio
   }
   if (hasAny(normalized, handoffPhrases)) {
     return decision('handoff', 'handoff', 'explicit_handoff', message);
+  }
+  if (isExplicitOrderConfirmation(message)) {
+    return decision('order_confirmation', 'direct_query', 'order_confirm', message);
+  }
+  if (isOrderCancellation(message)) {
+    return decision('order_draft', 'direct_query', 'order_cancel', message);
+  }
+  if (isOrderPurchaseRequest(message) || extractRequestedPrice(message) !== null) {
+    return decision('order_draft', 'direct_query', 'order_create', message);
+  }
+  if (isOrderChangeRequest(message)) {
+    return decision('order_draft', 'direct_query', 'order_update', message);
   }
   if (normalized.length <= 40 && hasAny(normalized, greetingPhrases)) {
     return decision('faq', 'static', 'greeting', message);
