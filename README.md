@@ -53,7 +53,7 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 | [AI agent design](docs/AI_AGENT.md)                              | السياق الديناميكي، الأدوات، الحماية والتقييم  |
 | [Roadmap](docs/ROADMAP.md)                                       | خطة تنفيذ MVP على مراحل ومسار حرج             |
 | [Security & privacy](docs/SECURITY.md)                           | ضوابط العزل والوصول والأسرار والتدقيق         |
-| [ADR-0001](docs/adr/0001-proposed-stack.md)                      | Stack مقترح يحتاج اعتمادًا قبل بدء التنفيذ    |
+| [ADR-0001](docs/adr/0001-proposed-stack.md)                      | Stack والاستضافة والهوية وسياسة بيانات Pilot  |
 | [Contributing](CONTRIBUTING.md)                                  | طريقة العمل وجودة الـPRs                      |
 
 ## الشكل المقترح للمستودع بعد اعتماد الـStack
