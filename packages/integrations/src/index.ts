@@ -25,7 +25,9 @@ export interface ChannelAdapter {
   deliver(conversationId: string, message: { readonly text: string }): Promise<DeliveryResult>;
 }
 
-/** Marker contract for the first pilot channel. No credentials or API calls live here yet. */
+/** Contract for the first external Pilot channel. */
 export interface InstagramAdapter extends ChannelAdapter {
   readonly channel: 'instagram';
 }
+
+export * from './instagram-adapter.js';

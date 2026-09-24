@@ -2,7 +2,7 @@
 
 منصة SaaS متعددة المتاجر تجمع إدارة المنتجات والمخزون والطلبات والعملاء مع وكيل AI لخدمة العملاء، مع إبقاء النظام وقواعد العمل مصدر الحقيقة الوحيد.
 
-> **الحالة الحالية:** اكتمل MVP الداخلي: الأساس والكتالوج الديناميكي والمخزون والطلبات والعملاء والمحادثات والقواعد والمعرفة وAI Gateway وGrounded Customer Agent وتدفق الطلب وHuman Handoff وPilot hardening. يبقى النشر الفعلي وتوقيع Go/No-Go وتكامل Instagram الحي قبل المشروع التجاري.
+> **الحالة الحالية:** اكتمل MVP الداخلي. بدأ مسار Instagram التجاري بمحول آمن للرسائل الواردة والصادرة؛ ما زال تفعيل Webhook وربط حسابات المتاجر وتجربة Meta Sandbox مطلوبًا قبل استقبال عملاء حقيقيين.
 
 ## مبادئ المنتج
 
@@ -51,6 +51,7 @@ WhatsApp وInstagram وMessenger الإنتاجية، الفوترة والاش�
 | [Pilot Training](docs/PILOT_TRAINING.md)                         | تدريب المستخدم وتمرين القبول                  |
 | [Pilot Go/No-Go](docs/PILOT_GO_NO_GO.md)                         | بوابة إلزامية قبل البيانات الحقيقية           |
 | [Deployment](docs/DEPLOYMENT.md)                                 | نشر staging على Vercel وSupabase              |
+| [Instagram integration](docs/INSTAGRAM_INTEGRATION.md)           | المحول الآمن وخطة Webhook والتفعيل            |
 | [AI agent design](docs/AI_AGENT.md)                              | السياق الديناميكي، الأدوات، الحماية والتقييم  |
 | [Roadmap](docs/ROADMAP.md)                                       | خطة تنفيذ MVP على مراحل ومسار حرج             |
 | [Security & privacy](docs/SECURITY.md)                           | ضوابط العزل والوصول والأسرار والتدقيق         |
@@ -83,7 +84,7 @@ packages/
 
 ## Development status
 
-The internal MVP foundation now includes tenancy, conversations, orders, the grounded customer agent, and human handoff. The first external Pilot channel is **Instagram**; live integration remains intentionally disabled until its adapter and Pilot hardening are complete.
+The internal MVP foundation now includes tenancy, conversations, orders, the grounded customer agent, and human handoff. The first external Pilot channel is **Instagram**. Its secure adapter foundation is implemented, while live traffic remains disabled until tenant account mapping, webhook ingestion, delivery jobs, and Meta Sandbox review are complete.
 
 ### Local quick start
 
@@ -129,3 +130,5 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 - [Pilot Operations](docs/PILOT_OPERATIONS.md): owner/manager KPI dashboard, stock/handoff/tool alerts, correlation trace, structured request logs, rate limits, bounded idempotent seed import, backup/restore drill and incident runbooks.
 
 - [Pilot Go/No-Go](docs/PILOT_GO_NO_GO.md): required security, recovery, privacy, training and first-day evidence before any real customer data is enabled.
+
+- [Instagram Integration](docs/INSTAGRAM_INTEGRATION.md): signed webhook normalization, versioned outbound delivery, tenant-scoped credential requirements, and the remaining live-activation work.
