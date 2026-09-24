@@ -378,7 +378,7 @@ export class CustomerService {
               tenant_id, actor_type, actor_id, action, entity_type,
               entity_id, correlation_id, metadata
             ) values (
-              ${context.tenantId}, 'user', ${identity.subject}, 'customer.deduplicated',
+              ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'customer.deduplicated',
               'customer', ${existingCustomerId}, ${correlationId},
               ${transaction.json({ matchedContactCount: matchedCustomerIds.size })}
             )
@@ -408,7 +408,7 @@ export class CustomerService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'customer.created',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'customer.created',
             'customer', ${created.id}, ${correlationId},
             ${transaction.json({
               contactTypes: [...new Set(contacts.map((contact) => contact.type))],
@@ -556,7 +556,7 @@ export class CustomerService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'customer.updated',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'customer.updated',
             'customer', ${customerId}, ${correlationId},
             ${transaction.json({
               previousVersion: current.version,
@@ -604,7 +604,7 @@ export class CustomerService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'customer.note.created',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'customer.note.created',
           'customer_note', ${note.id}, ${correlationId},
           ${transaction.json({ customerId })}
         )

@@ -295,7 +295,7 @@ export class OrderService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, ${action},
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, ${action},
             'order', ${entityId}, ${correlationId},
             ${transaction.json(jsonInput(metadata))}
           )
@@ -715,7 +715,7 @@ export class OrderService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'draft_order.created',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'draft_order.created',
           'draft_order', ${created.id}, ${correlationId},
           ${transaction.json({
             itemCount: quote.items.length,
@@ -828,7 +828,7 @@ export class OrderService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'draft_order.updated',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'draft_order.updated',
           'draft_order', ${draftOrderId}, ${correlationId},
           ${transaction.json({
             previousVersion: current.version,
@@ -889,7 +889,7 @@ export class OrderService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject},
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject},
           'draft_order.awaiting_confirmation', 'draft_order',
           ${draftOrderId}, ${correlationId},
           ${transaction.json({ previousVersion: draft.version, total: draft.total })}
@@ -936,7 +936,7 @@ export class OrderService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'draft_order.cancelled',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'draft_order.cancelled',
             'draft_order', ${draftOrderId}, ${correlationId},
             ${transaction.json({ reason: input.reason ?? null })}
           )
@@ -1025,7 +1025,7 @@ export class OrderService {
               tenant_id, actor_type, actor_id, action, entity_type,
               entity_id, correlation_id, metadata
             ) values (
-              ${context.tenantId}, 'user', ${identity.subject}, 'order.confirmed',
+              ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'order.confirmed',
               'order', ${result.orderId}, ${correlationId},
               ${transaction.json({
                 draftOrderId,
@@ -1176,7 +1176,7 @@ export class OrderService {
               tenant_id, actor_type, actor_id, action, entity_type,
               entity_id, correlation_id, metadata
             ) values (
-              ${context.tenantId}, 'user', ${identity.subject},
+              ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject},
               ${targetStatus === 'cancelled' ? 'order.cancelled' : 'order.transitioned'},
               'order', ${orderId}, ${correlationId},
               ${transaction.json({ targetStatus, reason: reason ?? null })}

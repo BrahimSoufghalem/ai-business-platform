@@ -162,6 +162,13 @@
       "when": 1790262454209,
       "tag": "0022_instagram-delivery-outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790263792729,
+      "tag": "0023_customer-agent-job-worker",
+      "breakpoints": true
     }
   ]
 }

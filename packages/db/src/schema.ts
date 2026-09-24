@@ -1600,6 +1600,7 @@ export const messageProcessingJobs = pgTable(
     maxAttempts: integer('max_attempts').notNull().default(5),
     availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
     lockedAt: timestamp('locked_at', { withTimezone: true }),
+    lockedBy: text('locked_by'),
     completedAt: timestamp('completed_at', { withTimezone: true }),
     lastErrorCode: text('last_error_code'),
     correlationId: text('correlation_id').notNull(),
@@ -1632,6 +1633,22 @@ export const messageProcessingJobs = pgTable(
     check(
       'message_processing_jobs_attempts_bounded',
       sql`${table.attempts} <= ${table.maxAttempts}`,
+    ),
+    check(
+      'message_processing_jobs_lock_shape',
+      sql`(
+        (${table.status} = 'processing' and ${table.lockedAt} is not null and ${table.lockedBy} is not null)
+        or
+        (${table.status} <> 'processing' and ${table.lockedAt} is null and ${table.lockedBy} is null)
+      )`,
+    ),
+    check(
+      'message_processing_jobs_terminal_shape',
+      sql`(
+        (${table.status} in ('completed', 'dead') and ${table.completedAt} is not null)
+        or
+        (${table.status} in ('pending', 'processing') and ${table.completedAt} is null)
+      )`,
     ),
     check(
       'message_processing_jobs_correlation_not_blank',

@@ -5,11 +5,13 @@ import { InventoryModule } from '../inventory/inventory.module.js';
 import { OrderModule } from '../orders/order.module.js';
 import { ProductsModule } from '../products/products.module.js';
 import { CustomerAgentController } from './customer-agent.controller.js';
+import { CustomerAgentJobController } from './customer-agent-job.controller.js';
+import { CustomerAgentJobProcessorService } from './customer-agent-job-processor.service.js';
 import { CustomerAgentService } from './customer-agent.service.js';
 
 @Module({
   imports: [ConversationModule, ProductsModule, InventoryModule, OrderModule, ConfigurationModule],
-  controllers: [CustomerAgentController],
-  providers: [CustomerAgentService],
+  controllers: [CustomerAgentController, CustomerAgentJobController],
+  providers: [CustomerAgentService, CustomerAgentJobProcessorService],
 })
 export class CustomerAgentModule {}

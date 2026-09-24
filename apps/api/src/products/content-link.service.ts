@@ -41,7 +41,7 @@ export class ContentLinkService {
           tenant_id, actor_type, actor_id, action, entity_type, entity_id,
           correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'content_product_link.mapped',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'content_product_link.mapped',
           'content_product_link', ${link?.id ?? 'unknown'}, ${correlationId},
           ${transaction.json({
             channel: input.channel,

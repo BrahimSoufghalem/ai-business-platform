@@ -202,7 +202,7 @@ export class AgentSettingsService {
           entity_id, correlation_id, metadata
         )
         select
-          ${context.tenantId}, 'user', ${identity.subject},
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject},
           'agent_settings.draft.saved', 'agent_settings_version',
           id::text, ${correlationId}, ${transaction.json({ version: nextVersion })}
         from agent_settings_versions
@@ -268,7 +268,7 @@ export class AgentSettingsService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'agent_settings.published',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'agent_settings.published',
           'agent_settings_version', ${versionId}, ${correlationId},
           ${transaction.json({ version: target.version })}
         )

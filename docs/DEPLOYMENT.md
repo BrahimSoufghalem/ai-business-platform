@@ -4,12 +4,13 @@
 
 ## البنية
 
-| الجزء      | Staging project                             |
-| ---------- | ------------------------------------------- |
-| Web        | Vercel project، Root Directory = `apps/web` |
-| API        | Vercel project، Root Directory = `apps/api` |
-| DB/Auth/S3 | Supabase project مستقل في منطقة EU          |
-| Deploy     | GitHub Actions: `Deploy staging`            |
+| الجزء      | Staging project                                     |
+| ---------- | --------------------------------------------------- |
+| Web        | Vercel project، Root Directory = `apps/web`         |
+| API        | Vercel project، Root Directory = `apps/api`         |
+| Worker     | خدمة دائمة على Railway أو Render أو Fly.io          |
+| DB/Auth/S3 | Supabase project مستقل في منطقة EU                  |
+| Deploy     | GitHub Actions: `Deploy staging` + نشر Worker مستقل |
 
 في مشروعي Vercel فعّل الوصول إلى ملفات monorepo خارج Root Directory. الإعدادات الموجودة في `apps/web/vercel.json` و`apps/api/vercel.json` تثبت build command والمنطقة.
 
@@ -38,7 +39,29 @@ RATE_LIMIT_WINDOW_MS=60000
 RATE_LIMIT_MAX_REQUESTS=120
 RATE_LIMIT_AGENT_MAX_REQUESTS=30
 PILOT_HANDOFF_WAIT_ALERT_SECONDS=900
+INTERNAL_WORKER_TOKEN=<shared managed secret, at least 32 random bytes>
+INSTAGRAM_APP_SECRET=<managed Meta secret>
+INSTAGRAM_VERIFY_TOKEN=<managed random secret>
+INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY=<32-byte canonical base64 key>
+INSTAGRAM_CREDENTIAL_KEY_VERSION=1
 ```
+
+### Worker service
+
+```text
+DATABASE_URL=<pooled runtime role URL>
+API_INTERNAL_BASE_URL=https://<staging-api-domain>
+INTERNAL_WORKER_TOKEN=<same API managed secret>
+INSTAGRAM_APP_SECRET=<same API managed Meta secret>
+INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY=<same API encryption key>
+INSTAGRAM_CREDENTIAL_KEY_VERSION=1
+WORKER_ID=<stable staging instance name>
+```
+
+Build with `pnpm --filter @ai-business/worker build` and start with
+`pnpm --filter @ai-business/worker start`. Keep one instance for the initial Pilot;
+database leases permit safe horizontal scaling later. Prefer private networking to
+the API when the hosting provider supports it.
 
 ### Web project
 
@@ -67,11 +90,13 @@ Runtime secrets تبقى داخل Vercel، ولا تمر في Workflow.
 
 1. ادمج commit أخضر إلى `main`.
 2. من Actions شغّل `Deploy staging`.
-3. الـWorkflow يعيد quality gates، يطبق migrations، يبني وينشر API ثم Web، ثم يفحص:
+3. الـWorkflow يعيد quality gates، يطبق migrations، يبني وينشر API ثم Web.
+4. انشر Worker بعد نجاح API والمigrations، ثم افحص:
    - `/api/health/live`
    - `/api/health/ready`
    - الصفحة الرئيسية للـWeb.
-4. نفّذ smoke يدويًا للـlogin وDashboard وInbox ببيانات اصطناعية.
+5. نفّذ smoke يدويًا للـlogin وDashboard وInbox ورسالة Instagram sandbox ببيانات
+   اصطناعية.
 
 ## Rollback
 

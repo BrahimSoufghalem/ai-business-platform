@@ -15,6 +15,8 @@ pnpm install
 docker compose up -d postgres
 pnpm db:migrate
 pnpm dev
+# In a second terminal, after setting the worker/Instagram variables:
+pnpm --filter @ai-business/worker dev
 ```
 
 The API exposes `GET /api/health/live` and `GET /api/health/ready`. The web app runs on the default Next.js development port.

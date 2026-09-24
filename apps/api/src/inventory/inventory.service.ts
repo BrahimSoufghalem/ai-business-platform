@@ -144,7 +144,7 @@ export class InventoryService {
         tenant_id, actor_type, actor_id, action, entity_type, entity_id,
         correlation_id, metadata
       ) values (
-        ${tenantId}, 'user', ${identity.subject}, ${action},
+        ${tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, ${action},
         'inventory_movement', ${result.movement.id}, ${correlationId},
         ${transaction.json({
           locationId: result.balance.locationId,
@@ -243,7 +243,7 @@ export class InventoryService {
             tenant_id, actor_type, actor_id, action, entity_type, entity_id,
             correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'inventory.location.created',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'inventory.location.created',
             'inventory_location', ${created.id}, ${correlationId},
             ${transaction.json({ code: created.code, isDefault: created.isDefault })}
           )
@@ -366,7 +366,7 @@ export class InventoryService {
             tenant_id, actor_type, actor_id, action, entity_type, entity_id,
             correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject},
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject},
             'inventory.reorder_point.updated', 'product_variant', ${input.variantId},
             ${correlationId},
             ${transaction.json({

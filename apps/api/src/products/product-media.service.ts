@@ -58,7 +58,7 @@ export class ProductMediaService {
           tenant_id, actor_type, actor_id, action, entity_type, entity_id,
           correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'product_media.ticket_created',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product_media.ticket_created',
           'product_media', ${mediaId}, ${correlationId},
           ${transaction.json({ productId, contentType: input.contentType })}
         )
@@ -111,7 +111,7 @@ export class ProductMediaService {
           tenant_id, actor_type, actor_id, action, entity_type, entity_id,
           correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'product_media.completed',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product_media.completed',
           'product_media', ${mediaId}, ${correlationId},
           ${transaction.json({ productId, sizeBytes: metadata.sizeBytes })}
         )

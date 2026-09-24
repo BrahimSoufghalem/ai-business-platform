@@ -131,4 +131,4 @@ See [Development](docs/DEVELOPMENT.md) and [ADR-0002](docs/adr/0002-instagram-fi
 
 - [Pilot Go/No-Go](docs/PILOT_GO_NO_GO.md): required security, recovery, privacy, training and first-day evidence before any real customer data is enabled.
 
-- [Instagram Integration](docs/INSTAGRAM_INTEGRATION.md): signed idempotent ingestion, encrypted tenant credentials, durable outbound leases, bounded retries, dead-letter handling, and the remaining live-activation work.
+- [Instagram Integration](docs/INSTAGRAM_INTEGRATION.md): signed idempotent ingestion, least-privilege automated agent replies, encrypted tenant credentials, durable delivery leases, bounded retries, dead-letter handling, and the remaining live-activation work.

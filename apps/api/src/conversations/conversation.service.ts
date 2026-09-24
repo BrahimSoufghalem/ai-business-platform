@@ -957,7 +957,7 @@ export class ConversationService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'conversation.created',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'conversation.created',
             'conversation', ${created.id}, ${correlationId},
             ${transaction.json({
               channel: input.channel,
@@ -1407,7 +1407,7 @@ export class ConversationService {
               tenant_id, actor_type, actor_id, action, entity_type,
               entity_id, correlation_id, metadata
             ) values (
-              ${context.tenantId}, 'user', ${identity.subject}, 'conversation.message.created',
+              ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'conversation.message.created',
               'message', ${message.id}, ${correlationId},
               ${transaction.json({
                 conversationId,
@@ -1512,7 +1512,7 @@ export class ConversationService {
               tenant_id, actor_type, actor_id, action, entity_type,
               entity_id, correlation_id, metadata
             ) values (
-              ${context.tenantId}, 'user', ${identity.subject}, 'handoff.claimed',
+              ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'handoff.claimed',
               'handoff', ${claimedHandoff.id}, ${correlationId},
               ${transaction.json({ conversationId })}
             )
@@ -1634,7 +1634,7 @@ export class ConversationService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'handoff.released',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'handoff.released',
             'handoff', ${releasedHandoff.id}, ${correlationId},
             ${transaction.json({ conversationId, reason: input.reason })}
           )
@@ -1665,7 +1665,7 @@ export class ConversationService {
         tenant_id, actor_type, actor_id, action, entity_type,
         entity_id, correlation_id, metadata
       ) values (
-        ${tenantId}, 'user', ${identity.subject}, 'conversation.status.changed',
+        ${tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'conversation.status.changed',
         'conversation', ${conversationId}, ${correlationId},
         ${transaction.json({ fromStatus, toStatus })}
       )
@@ -1808,7 +1808,7 @@ export class ConversationService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, ${handoffAction},
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, ${handoffAction},
             'handoff', ${changedHandoff.id}, ${correlationId},
             ${transaction.json({
               conversationId,
@@ -1887,7 +1887,7 @@ export class ConversationService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'conversation.links.updated',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'conversation.links.updated',
           'conversation', ${conversationId}, ${correlationId},
           ${transaction.json({
             customerId: next.customerId,

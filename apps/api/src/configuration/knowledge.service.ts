@@ -187,7 +187,7 @@ export class KnowledgeService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'knowledge.created',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'knowledge.created',
             'knowledge_entry', ${created.id}, ${correlationId},
             ${transaction.json({ slug: input.slug, kind: input.kind, draftVersion: 1 })}
           )
@@ -261,7 +261,7 @@ export class KnowledgeService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'knowledge.draft.saved',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'knowledge.draft.saved',
           'knowledge_entry', ${entryId}, ${correlationId},
           ${transaction.json({ draftVersion: next.version })}
         )
@@ -334,7 +334,7 @@ export class KnowledgeService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'knowledge.published',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'knowledge.published',
           'knowledge_version', ${versionId}, ${correlationId},
           ${transaction.json({ entryId, version: target.version })}
         )

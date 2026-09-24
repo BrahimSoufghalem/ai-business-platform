@@ -47,16 +47,17 @@ export async function withIdentityTransaction<T>(
 }
 
 /**
- * Establishes the tenant, verified identity subject, and correlation ID using
- * transaction-local settings. PostgreSQL RLS verifies active membership.
+ * Establishes the tenant, verified actor subject/type, and correlation ID using
+ * transaction-local settings. PostgreSQL RLS verifies active membership for both
+ * OIDC users and explicitly provisioned internal service principals.
  */
 export async function withTenantTransaction<T>(
   client: DatabaseClient,
   context: TenantContext,
   operation: (transaction: TenantTransaction) => Promise<T>,
 ): Promise<T> {
-  if (context.actor.type !== 'user') {
-    throw new Error('User tenant transactions require a verified user identity.');
+  if (context.actor.id.trim().length === 0) {
+    throw new Error('Tenant actor identity is required.');
   }
 
   const result = await client.begin(async (transaction) => {
@@ -64,6 +65,7 @@ export async function withTenantTransaction<T>(
       select
         set_config('app.tenant_id', ${context.tenantId}, true),
         set_config('app.identity_subject', ${context.actor.id}, true),
+        set_config('app.actor_type', ${context.actor.type}, true),
         set_config('app.correlation_id', ${context.correlationId}, true)
     `;
 
