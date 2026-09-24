@@ -30,11 +30,14 @@ describeWithDatabase('Instagram tenant connection', () => {
   let database: DatabaseService;
   let connections: InstagramConnectionService;
   let webhooks: InstagramWebhookService;
-  let previousEncryptionKey: string | undefined;
+  const previousEnvironment: Record<string, string | undefined> = {};
 
   beforeAll(async () => {
-    previousEncryptionKey = process.env.INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY;
+    for (const name of ['INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY', 'INSTAGRAM_APP_SECRET']) {
+      previousEnvironment[name] = process.env[name];
+    }
     process.env.INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY = randomBytes(32).toString('base64');
+    process.env.INSTAGRAM_APP_SECRET = 'instagram-integration-app-secret-123456';
     process.env.DATABASE_URL = databaseUrl;
 
     await admin`
@@ -83,10 +86,9 @@ describeWithDatabase('Instagram tenant connection', () => {
     await admin`delete from app_users where id in (${ownerUserId}, ${agentUserId})`;
     await database.onApplicationShutdown();
     await admin.end();
-    if (previousEncryptionKey === undefined) {
-      delete process.env.INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY;
-    } else {
-      process.env.INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY = previousEncryptionKey;
+    for (const [name, value] of Object.entries(previousEnvironment)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
     }
   });
 
