@@ -151,23 +151,134 @@ describeWithDatabase('Instagram tenant connection', () => {
       accessToken,
     });
 
+    const payload = {
+      object: 'instagram',
+      entry: [
+        {
+          id: '17841400000000004',
+          messaging: [
+            {
+              sender: { id: '99112233' },
+              timestamp: 1_790_000_000_000,
+              message: { mid: 'ig-webhook-mid-1', text: 'هل المنتج متوفر؟' },
+            },
+          ],
+        },
+      ],
+    };
+
+    await expect(webhooks.accept(payload, 'instagram-ingest-first')).resolves.toEqual({
+      received: true,
+      acceptedMessages: 1,
+      replayedMessages: 0,
+      queuedJobs: 1,
+    });
+    await expect(webhooks.accept(payload, 'instagram-ingest-replay')).resolves.toEqual({
+      received: true,
+      acceptedMessages: 0,
+      replayedMessages: 1,
+      queuedJobs: 0,
+    });
+
+    const [counts] = await admin<
+      {
+        customers: number;
+        conversations: number;
+        messages: number;
+        jobs: number;
+      }[]
+    >`
+      select
+        (
+          select count(*)::int from customer_contacts
+          where tenant_id = ${tenantA} and normalized_value = 'igsid:99112233'
+        ) as customers,
+        (
+          select count(*)::int from conversations
+          where tenant_id = ${tenantA} and channel = 'instagram'
+            and external_thread_id = '99112233'
+        ) as conversations,
+        (
+          select count(*)::int from messages
+          where tenant_id = ${tenantA} and external_id = 'ig-webhook-mid-1'
+        ) as messages,
+        (
+          select count(*)::int from message_processing_jobs
+          where tenant_id = ${tenantA}
+        ) as jobs
+    `;
+    expect(counts).toEqual({ customers: 1, conversations: 1, messages: 1, jobs: 1 });
+  });
+
+  it('ignores signed events for an account that is not connected', async () => {
     await expect(
-      webhooks.accept({
-        object: 'instagram',
-        entry: [
-          {
-            id: '17841400000000004',
-            messaging: [
-              {
-                sender: { id: '99112233' },
-                timestamp: 1_790_000_000_000,
-                message: { mid: 'ig-webhook-mid-1', text: 'هل المنتج متوفر؟' },
-              },
-            ],
-          },
-        ],
-      }),
-    ).resolves.toEqual({ received: true, acceptedMessages: 1 });
+      webhooks.accept(
+        {
+          object: 'instagram',
+          entry: [
+            {
+              id: '17841499999999999',
+              messaging: [
+                {
+                  sender: { id: '44556677' },
+                  timestamp: 1_790_000_000_000,
+                  message: { mid: 'ig-unknown-account', text: 'hello' },
+                },
+              ],
+            },
+          ],
+        },
+        'instagram-unknown-account',
+      ),
+    ).resolves.toEqual({
+      received: true,
+      acceptedMessages: 0,
+      replayedMessages: 0,
+      queuedJobs: 0,
+    });
+  });
+
+  it('rejects a reused external message ID with different content', async () => {
+    await connections.connect(ownerIdentity, 'instagram-connect-conflict', tenantA, {
+      accountId: '17841400000000005',
+      accessToken,
+    });
+    const firstPayload = {
+      object: 'instagram',
+      entry: [
+        {
+          id: '17841400000000005',
+          messaging: [
+            {
+              sender: { id: '99887766' },
+              timestamp: 1_790_000_000_000,
+              message: { mid: 'ig-conflicting-mid', text: 'first' },
+            },
+          ],
+        },
+      ],
+    };
+    await webhooks.accept(firstPayload, 'instagram-conflict-first');
+
+    await expect(
+      webhooks.accept(
+        {
+          ...firstPayload,
+          entry: [
+            {
+              ...firstPayload.entry[0],
+              messaging: [
+                {
+                  ...firstPayload.entry[0]!.messaging[0],
+                  message: { mid: 'ig-conflicting-mid', text: 'changed' },
+                },
+              ],
+            },
+          ],
+        },
+        'instagram-conflict-second',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('allows only the tenant owner to manage the connection', async () => {

@@ -148,6 +148,13 @@
       "when": 1790243477755,
       "tag": "0020_instagram-webhook-resolution",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790244631335,
+      "tag": "0021_cool_boom_boom",
+      "breakpoints": true
     }
   ]
 }
