@@ -30,11 +30,13 @@ Implemented:
 - Webhook subscription challenge verification.
 - Owner-only tenant/account mapping with AES-256-GCM token encryption and audited
   rotation or deletion.
+- Public subscription verification plus a size-bounded POST pre-parser that validates
+  `X-Hub-Signature-256` against raw bytes before JSON parsing.
 
 Still required before live activation:
 
 - Meta App credentials or secrets.
-- API webhook route, idempotent ingestion, queued retries, and dead-letter handling.
+- Idempotent webhook ingestion, queued retries, and dead-letter handling.
 - Meta Sandbox validation, App Review, and Pilot Go/No-Go approval.
 - Automated product recognition from media.
 

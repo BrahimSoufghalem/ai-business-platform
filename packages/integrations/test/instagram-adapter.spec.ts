@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { parseTenantId } from '@ai-business/domain';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  InstagramConfigurationError,
   InstagramDeliveryError,
   InstagramLiveAdapter,
   verifyInstagramWebhookChallenge,
@@ -144,6 +145,14 @@ describe('InstagramLiveAdapter', () => {
         }),
       }),
     );
+  });
+
+  it('supports inbound-only configuration but blocks outbound delivery without a token', async () => {
+    const inboundOnly = new InstagramLiveAdapter({ appSecret, accountId });
+
+    await expect(
+      inboundOnly.deliver('99112233', { text: 'This must not be sent.' }),
+    ).rejects.toBeInstanceOf(InstagramConfigurationError);
   });
 
   it('returns a redacted provider error', async () => {

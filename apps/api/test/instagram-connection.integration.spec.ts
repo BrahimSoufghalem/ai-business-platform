@@ -4,6 +4,7 @@ import { createDatabaseClient } from '@ai-business/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DatabaseService } from '../src/database/database.service.js';
 import { InstagramConnectionService } from '../src/integrations/instagram-connection.service.js';
+import { InstagramWebhookService } from '../src/integrations/instagram-webhook.service.js';
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -28,11 +29,15 @@ describeWithDatabase('Instagram tenant connection', () => {
   const admin = createDatabaseClient(databaseUrl);
   let database: DatabaseService;
   let connections: InstagramConnectionService;
-  let previousEncryptionKey: string | undefined;
+  let webhooks: InstagramWebhookService;
+  const previousEnvironment: Record<string, string | undefined> = {};
 
   beforeAll(async () => {
-    previousEncryptionKey = process.env.INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY;
+    for (const name of ['INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY', 'INSTAGRAM_APP_SECRET']) {
+      previousEnvironment[name] = process.env[name];
+    }
     process.env.INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY = randomBytes(32).toString('base64');
+    process.env.INSTAGRAM_APP_SECRET = 'instagram-integration-app-secret-123456';
     process.env.DATABASE_URL = databaseUrl;
 
     await admin`
@@ -61,6 +66,7 @@ describeWithDatabase('Instagram tenant connection', () => {
 
     database = new DatabaseService();
     connections = new InstagramConnectionService(database);
+    webhooks = new InstagramWebhookService(database);
   });
 
   beforeEach(async () => {
@@ -80,10 +86,9 @@ describeWithDatabase('Instagram tenant connection', () => {
     await admin`delete from app_users where id in (${ownerUserId}, ${agentUserId})`;
     await database.onApplicationShutdown();
     await admin.end();
-    if (previousEncryptionKey === undefined) {
-      delete process.env.INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY;
-    } else {
-      process.env.INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY = previousEncryptionKey;
+    for (const [name, value] of Object.entries(previousEnvironment)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
     }
   });
 
@@ -138,6 +143,31 @@ describeWithDatabase('Instagram tenant connection', () => {
         accessToken: `${accessToken}-other`,
       }),
     ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('resolves a signed webhook account internally and binds messages to its tenant', async () => {
+    await connections.connect(ownerIdentity, 'instagram-connect-webhook', tenantA, {
+      accountId: '17841400000000004',
+      accessToken,
+    });
+
+    await expect(
+      webhooks.accept({
+        object: 'instagram',
+        entry: [
+          {
+            id: '17841400000000004',
+            messaging: [
+              {
+                sender: { id: '99112233' },
+                timestamp: 1_790_000_000_000,
+                message: { mid: 'ig-webhook-mid-1', text: 'هل المنتج متوفر؟' },
+              },
+            ],
+          },
+        ],
+      }),
+    ).resolves.toEqual({ received: true, acceptedMessages: 1 });
   });
 
   it('allows only the tenant owner to manage the connection', async () => {
