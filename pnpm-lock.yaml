@@ -63,6 +63,9 @@ importers:
       '@ai-business/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@ai-business/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       '@ai-business/shared':
         specifier: workspace:*
         version: link:../../packages/shared
