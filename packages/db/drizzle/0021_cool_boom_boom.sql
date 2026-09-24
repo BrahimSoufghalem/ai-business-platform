@@ -215,7 +215,6 @@ BEGIN
     resolved_tenant_id, resolved_conversation_id, resolved_message_id,
     target_correlation_id
   )
-  ON CONFLICT (tenant_id, source_message_id, kind) DO NOTHING
   RETURNING id INTO queued_job_id;
 
   INSERT INTO audit_events (
