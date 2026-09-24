@@ -32,3 +32,4 @@ export interface InstagramAdapter extends ChannelAdapter {
 
 export * from './instagram-adapter.js';
 export * from './instagram-credential-vault.js';
+export * from './instagram-delivery-policy.js';

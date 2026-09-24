@@ -277,6 +277,8 @@ export class InstagramLiveAdapter implements InstagramAdapter {
           signal: controller.signal,
         },
       );
+    } catch {
+      throw new InstagramDeliveryError(0, null, controller.signal.aborted ? 'timeout' : 'network');
     } finally {
       clearTimeout(timeout);
     }
