@@ -12,6 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai-business/domain": "workspace:*"
+    "@ai-business/db": "workspace:*",
+    "@ai-business/domain": "workspace:*",
+    "@ai-business/integrations": "workspace:*"
   }
 }
