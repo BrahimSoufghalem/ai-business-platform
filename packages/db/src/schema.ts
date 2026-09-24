@@ -130,6 +130,11 @@ export const handoffResolution = pgEnum('handoff_resolution', [
   'returned_to_bot',
   'conversation_closed',
 ]);
+export const instagramConnectionStatus = pgEnum('instagram_connection_status', [
+  'active',
+  'disabled',
+  'reauthorization_required',
+]);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -1523,6 +1528,49 @@ export const handoffs = pgTable(
           and ${table.resolution} is not null
         )
       )`,
+    ),
+  ],
+);
+
+export const instagramAccounts = pgTable(
+  'instagram_accounts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    instagramAccountId: text('instagram_account_id').notNull(),
+    accessTokenCiphertext: text('access_token_ciphertext').notNull(),
+    accessTokenIv: text('access_token_iv').notNull(),
+    accessTokenAuthTag: text('access_token_auth_tag').notNull(),
+    encryptionKeyVersion: integer('encryption_key_version').notNull().default(1),
+    tokenFingerprint: text('token_fingerprint').notNull(),
+    status: instagramConnectionStatus('status').notNull().default('active'),
+    connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+    lastValidatedAt: timestamp('last_validated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('instagram_accounts_tenant_uq').on(table.tenantId),
+    uniqueIndex('instagram_accounts_account_uq').on(table.instagramAccountId),
+    check(
+      'instagram_accounts_account_id_numeric',
+      sql`${table.instagramAccountId} ~ '^[0-9]{1,80}$'`,
+    ),
+    check(
+      'instagram_accounts_ciphertext_not_blank',
+      sql`length(trim(${table.accessTokenCiphertext})) > 0`,
+    ),
+    check('instagram_accounts_iv_not_blank', sql`length(trim(${table.accessTokenIv})) > 0`),
+    check(
+      'instagram_accounts_auth_tag_not_blank',
+      sql`length(trim(${table.accessTokenAuthTag})) > 0`,
+    ),
+    check('instagram_accounts_key_version_positive', sql`${table.encryptionKeyVersion} > 0`),
+    check(
+      'instagram_accounts_fingerprint_shape',
+      sql`${table.tokenFingerprint} ~ '^[a-f0-9]{16}$'`,
     ),
   ],
 );

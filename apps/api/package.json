@@ -25,6 +25,7 @@
     "@ai-business/ai-gateway": "workspace:*",
     "@ai-business/customer-agent": "workspace:*",
     "@ai-business/db": "workspace:*",
+    "@ai-business/integrations": "workspace:*",
     "zod": "^4.1.5",
     "@ai-business/storage": "workspace:*"
   }

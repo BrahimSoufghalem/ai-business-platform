@@ -17,6 +17,38 @@ The first live-channel increment is implemented in `@ai-business/integrations`.
 
 This code does **not** enable live traffic by itself.
 
+The tenant connection layer is also implemented:
+
+- one Instagram professional account can belong to only one tenant;
+- only the tenant owner can create, inspect, rotate, or delete a connection;
+- access tokens use AES-256-GCM encryption with tenant ID, account ID, and key
+  version as authenticated data;
+- API responses and audit events expose only the token fingerprint and account ID,
+  never token plaintext;
+- deleting a connection deletes its encrypted credential.
+
+## Tenant Connection API
+
+All routes require an authenticated tenant owner:
+
+- `GET /api/tenants/:tenantId/integrations/instagram`
+- `PUT /api/tenants/:tenantId/integrations/instagram`
+- `DELETE /api/tenants/:tenantId/integrations/instagram`
+
+The `PUT` body is:
+
+```json
+{
+  "accountId": "17841400000000000",
+  "accessToken": "entered-through-a-secure-secret-control"
+}
+```
+
+Set `INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY` to a secret 32-byte key encoded as
+canonical base64. Generate it with `openssl rand -base64 32`, store it in the
+deployment secret manager, and never commit it. Rotating an account token through
+`PUT` creates a new IV and authentication tag.
+
 ## Meta Contract
 
 - API host: `https://graph.instagram.com`.
@@ -42,24 +74,22 @@ request unless `InstagramLiveAdapter.verifyWebhookSignature` succeeds. The tenan
 must be resolved from an internal mapping of the webhook account ID; it must never
 come from the webhook body or a client-supplied header.
 
-Store each tenant's Instagram account ID and access token together. Encrypt the token
-at rest, expose it only to the worker that sends messages, and record only a
-non-secret credential reference in application logs. App secret and verification
-token remain application-level secrets.
+Each tenant's Instagram account ID and access token are stored together. The token is
+encrypted at rest, while application logs and audit events record only non-secret
+diagnostics. App secret, verification token, and encryption key remain
+application-level secrets.
 
 ## Remaining Activation Work
 
-1. Add the encrypted tenant/account credential mapping and owner-only connection
-   workflow.
-2. Add `GET` subscription verification and signed `POST` webhook routes.
-3. Persist normalized messages idempotently, acknowledge the webhook quickly, and
+1. Add `GET` subscription verification and signed `POST` webhook routes.
+2. Persist normalized messages idempotently, acknowledge the webhook quickly, and
    enqueue agent processing.
-4. Add outbound delivery jobs with bounded retries, rate-limit handling, and a
+3. Add outbound delivery jobs with bounded retries, rate-limit handling, and a
    dead-letter queue.
-5. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
+4. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
    inbound text, outbound reply, duplicate delivery, invalid signature, expired
    token, and human handoff.
-6. Complete Meta App Review, privacy review, and the Pilot Go/No-Go checklist before
+5. Complete Meta App Review, privacy review, and the Pilot Go/No-Go checklist before
    connecting a real store.
 
 ## Package Verification

@@ -28,11 +28,12 @@ Implemented:
 - Tenant-bound normalization of text and HTTPS media messages.
 - Versioned outbound text delivery with bounded input, timeout, and redacted errors.
 - Webhook subscription challenge verification.
+- Owner-only tenant/account mapping with AES-256-GCM token encryption and audited
+  rotation or deletion.
 
 Still required before live activation:
 
 - Meta App credentials or secrets.
-- Encrypted tenant-to-Instagram-account credential mapping.
 - API webhook route, idempotent ingestion, queued retries, and dead-letter handling.
 - Meta Sandbox validation, App Review, and Pilot Go/No-Go approval.
 - Automated product recognition from media.

@@ -126,7 +126,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
            conversations, messages, conversation_transitions,
            business_rule_sets, business_rule_versions, knowledge_entries,
            knowledge_versions, agent_settings_versions, pricing_decisions,
-           ai_runs, ai_tool_calls, handoffs
+           ai_runs, ai_tool_calls, handoffs, instagram_accounts
         TO ai_business_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE
         ON inventory_movements
