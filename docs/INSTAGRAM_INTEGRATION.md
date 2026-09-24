@@ -49,6 +49,29 @@ canonical base64. Generate it with `openssl rand -base64 32`, store it in the
 deployment secret manager, and never commit it. Rotating an account token through
 `PUT` creates a new IV and authentication tag.
 
+## Webhook API
+
+Meta callback URL:
+
+```text
+https://<api-host>/api/webhooks/instagram
+```
+
+- `GET` performs the Meta subscription challenge using
+  `INSTAGRAM_VERIFY_TOKEN`.
+- `POST` requires `Content-Type: application/json` and a valid
+  `X-Hub-Signature-256`.
+- A Fastify pre-parser reads a bounded raw byte stream and verifies the HMAC
+  before the JSON parser runs.
+- `INSTAGRAM_WEBHOOK_MAX_BYTES` defaults to 262,144 bytes and cannot exceed
+  1 MiB.
+- A security-definer database lookup resolves the signed Instagram account ID to
+  one active tenant. The request body cannot supply a tenant ID.
+
+The endpoint currently validates, resolves, and normalizes supported events. Live
+Meta subscription remains disabled until the next increment persists the normalized
+envelopes idempotently.
+
 ## Meta Contract
 
 - API host: `https://graph.instagram.com`.
@@ -81,15 +104,14 @@ application-level secrets.
 
 ## Remaining Activation Work
 
-1. Add `GET` subscription verification and signed `POST` webhook routes.
-2. Persist normalized messages idempotently, acknowledge the webhook quickly, and
+1. Persist normalized messages idempotently, acknowledge the webhook quickly, and
    enqueue agent processing.
-3. Add outbound delivery jobs with bounded retries, rate-limit handling, and a
+2. Add outbound delivery jobs with bounded retries, rate-limit handling, and a
    dead-letter queue.
-4. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
+3. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
    inbound text, outbound reply, duplicate delivery, invalid signature, expired
    token, and human handoff.
-5. Complete Meta App Review, privacy review, and the Pilot Go/No-Go checklist before
+4. Complete Meta App Review, privacy review, and the Pilot Go/No-Go checklist before
    connecting a real store.
 
 ## Package Verification

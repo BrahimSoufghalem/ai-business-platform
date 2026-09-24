@@ -140,6 +140,8 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_current_membership_user_id(uuid)
         TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_resolve_instagram_tenant(text)
+        TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_provision_tenant(text, text, text, text)
         TO ai_business_runtime;
     `);

@@ -12,7 +12,7 @@ const MAX_OUTBOUND_TEXT_LENGTH = 1_000;
 
 export interface InstagramAdapterConfiguration {
   readonly appSecret: string;
-  readonly accessToken: string;
+  readonly accessToken?: string;
   readonly accountId: string;
   readonly graphApiVersion?: string;
   readonly graphBaseUrl?: string;
@@ -94,6 +94,18 @@ function secretEquals(left: string, right: string): boolean {
   return leftBytes.length === rightBytes.length && timingSafeEqual(leftBytes, rightBytes);
 }
 
+export function verifyInstagramWebhookSignature(
+  rawBody: Uint8Array,
+  signature: string,
+  appSecret: string,
+): boolean {
+  const match = /^sha256=([a-f0-9]{64})$/u.exec(signature);
+  if (!match?.[1] || appSecret.length < 16) return false;
+  const expected = createHmac('sha256', appSecret).update(rawBody).digest();
+  const supplied = Buffer.from(match[1], 'hex');
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}
+
 export function verifyInstagramWebhookChallenge(
   query: Readonly<Record<string, unknown>>,
   verifyToken: string,
@@ -116,7 +128,7 @@ export function verifyInstagramWebhookChallenge(
 export class InstagramLiveAdapter implements InstagramAdapter {
   readonly channel = 'instagram' as const;
   private readonly appSecret: string;
-  private readonly accessToken: string;
+  private readonly accessToken: string | null;
   private readonly accountId: string;
   private readonly graphApiVersion: string;
   private readonly graphBaseUrl: string;
@@ -128,7 +140,7 @@ export class InstagramLiveAdapter implements InstagramAdapter {
     if (configuration.appSecret.trim().length < 16) {
       throw new InstagramConfigurationError('Instagram app secret is missing or too short.');
     }
-    if (configuration.accessToken.trim().length < 10) {
+    if (configuration.accessToken !== undefined && configuration.accessToken.trim().length < 10) {
       throw new InstagramConfigurationError('Instagram access token is missing or too short.');
     }
     if (!/^[0-9]{1,80}$/u.test(configuration.accountId)) {
@@ -148,7 +160,7 @@ export class InstagramLiveAdapter implements InstagramAdapter {
     }
 
     this.appSecret = configuration.appSecret;
-    this.accessToken = configuration.accessToken;
+    this.accessToken = configuration.accessToken ?? null;
     this.accountId = configuration.accountId;
     this.graphApiVersion = version;
     this.graphBaseUrl = baseUrl.toString().replace(/\/$/u, '');
@@ -158,11 +170,7 @@ export class InstagramLiveAdapter implements InstagramAdapter {
   }
 
   async verifyWebhookSignature(rawBody: Uint8Array, signature: string): Promise<boolean> {
-    const match = /^sha256=([a-f0-9]{64})$/u.exec(signature);
-    if (!match?.[1]) return false;
-    const expected = createHmac('sha256', this.appSecret).update(rawBody).digest();
-    const supplied = Buffer.from(match[1], 'hex');
-    return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+    return verifyInstagramWebhookSignature(rawBody, signature, this.appSecret);
   }
 
   async normalizeInbound(payload: unknown, tenantId: TenantId): Promise<InboundMessageEnvelope[]> {
@@ -237,6 +245,11 @@ export class InstagramLiveAdapter implements InstagramAdapter {
     conversationId: string,
     message: { readonly text: string },
   ): Promise<DeliveryResult> {
+    if (!this.accessToken) {
+      throw new InstagramConfigurationError(
+        'Instagram access token is required for outbound delivery.',
+      );
+    }
     if (!/^[0-9]{1,80}$/u.test(conversationId)) {
       throw new InstagramPayloadError('Instagram-scoped recipient ID is invalid.');
     }

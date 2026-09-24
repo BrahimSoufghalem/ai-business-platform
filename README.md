@@ -2,7 +2,7 @@
 
 منصة SaaS متعددة المتاجر تجمع إدارة المنتجات والمخزون والطلبات والعملاء مع وكيل AI لخدمة العملاء، مع إبقاء النظام وقواعد العمل مصدر الحقيقة الوحيد.
 
-> **الحالة الحالية:** اكتمل MVP الداخلي. يتضمن مسار Instagram الآن المحول الآمن وربط حساب واحد مشفّر بكل متجر؛ ما زال تفعيل Webhook وتجربة Meta Sandbox مطلوبًا قبل استقبال عملاء حقيقيين.
+> **الحالة الحالية:** اكتمل MVP الداخلي. يتضمن مسار Instagram الآن المحول الآمن، الربط المشفّر لكل متجر، ومسار Webhook موقّع؛ ما زال إدخال الرسائل وتشغيل الردود وتجربة Meta Sandbox مطلوبًا قبل استقبال عملاء حقيقيين.
 
 ## مبادئ المنتج
 
@@ -84,7 +84,7 @@ packages/
 
 ## Development status
 
-The internal MVP foundation now includes tenancy, conversations, orders, the grounded customer agent, and human handoff. The first external Pilot channel is **Instagram**. Its secure adapter and encrypted owner-managed tenant connection are implemented, while live traffic remains disabled until webhook ingestion, delivery jobs, and Meta Sandbox review are complete.
+The internal MVP foundation now includes tenancy, conversations, orders, the grounded customer agent, and human handoff. The first external Pilot channel is **Instagram**. Its secure adapter, encrypted owner-managed tenant connection, and signed webhook boundary are implemented, while live traffic remains disabled until idempotent ingestion, delivery jobs, and Meta Sandbox review are complete.
 
 ### Local quick start
 
