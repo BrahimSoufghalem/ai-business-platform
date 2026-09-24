@@ -45,6 +45,8 @@ const aiToolCallA = '13131313-1313-4313-8313-131313131313';
 const handoffRunA = '14141414-1414-4414-8414-141414141414';
 const handoffSourceMessageA = '15151515-1515-4515-8515-151515151515';
 const handoffA = '16161616-1616-4616-8616-161616161616';
+const instagramConversationA = '17171717-1717-4717-8717-171717171717';
+const instagramMessageA = '18181818-1818-4818-8818-181818181818';
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
 const provisioningUser = 'identity-user-provisioning-test';
@@ -127,7 +129,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
            business_rule_sets, business_rule_versions, knowledge_entries,
            knowledge_versions, agent_settings_versions, pricing_decisions,
            ai_runs, ai_tool_calls, handoffs, instagram_accounts,
-           message_processing_jobs
+           message_processing_jobs, instagram_delivery_jobs
         TO ai_business_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE
         ON inventory_movements
@@ -146,6 +148,12 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       GRANT EXECUTE ON FUNCTION app_ingest_instagram_message(
         text, text, text, text, timestamptz, text, jsonb, text, text
       ) TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_claim_instagram_delivery_job(text)
+        TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_complete_instagram_delivery_job(uuid, text, text)
+        TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_fail_instagram_delivery_job(uuid, text, text, timestamptz)
+        TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_provision_tenant(text, text, text, text)
         TO ai_business_runtime;
     `);
@@ -235,6 +243,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
     await admin`delete from conversation_transitions where tenant_id = ${tenantA}`;
     await admin`delete from messages where tenant_id = ${tenantA}`;
     await admin`delete from conversations where tenant_id = ${tenantA}`;
+    await admin`delete from instagram_accounts where tenant_id = ${tenantA}`;
     await admin`delete from order_commands where tenant_id = ${tenantA}`;
     await admin`delete from order_transitions where tenant_id = ${tenantA}`;
     await admin`delete from order_items where tenant_id = ${tenantA}`;
@@ -1650,6 +1659,147 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       status: 'active',
       assignedToUserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
       firstClaimed: true,
+    });
+  });
+
+  it('queues, leases, retries, and completes Instagram delivery durably', async () => {
+    await withRuntimeTenant(context(tenantA, userA), async (tx) => {
+      await tx`
+        insert into instagram_accounts (
+          tenant_id, instagram_account_id, access_token_ciphertext,
+          access_token_iv, access_token_auth_tag, token_fingerprint
+        ) values (
+          ${tenantA}, '17841400000000000', 'ciphertext',
+          'initialization-vector', 'authentication-tag', '0123456789abcdef'
+        )
+      `;
+      await tx`
+        insert into conversations (
+          id, tenant_id, customer_id, channel, external_thread_id, status
+        ) values (
+          ${instagramConversationA}, ${tenantA}, ${customerA},
+          'instagram', '99112233', 'bot'
+        )
+      `;
+      await tx`
+        insert into messages (
+          id, tenant_id, conversation_id, direction, sender_type,
+          sender_id, external_id, fingerprint, content, metadata
+        ) values (
+          ${instagramMessageA}, ${tenantA}, ${instagramConversationA},
+          'outbound', 'bot', 'customer-agent', 'agent-reply:test',
+          'instagram-delivery-test', 'المنتج متوفر.', '{}'::jsonb
+        )
+      `;
+    });
+
+    const [queued] = await withRuntimeTenant(
+      context(tenantA, userA),
+      (tx) =>
+        tx<{ status: string; attempts: number }[]>`
+          select status::text, attempts
+          from instagram_delivery_jobs
+          where tenant_id = ${tenantA} and message_id = ${instagramMessageA}
+        `,
+    );
+    expect(queued).toEqual({ status: 'pending', attempts: 0 });
+    expect(
+      await withRuntimeTenant(
+        context(tenantB, userB),
+        (tx) => tx<{ id: string }[]>`select id::text from instagram_delivery_jobs`,
+      ),
+    ).toEqual([]);
+
+    const [firstClaim] = await withRuntimeIdentity(
+      'delivery-worker',
+      (tx) =>
+        tx<
+          {
+            jobId: string;
+            recipientId: string;
+            attempts: number;
+            accountStatus: string;
+          }[]
+        >`
+          select
+            job_id::text as "jobId",
+            recipient_id as "recipientId",
+            attempts,
+            account_status as "accountStatus"
+          from app_claim_instagram_delivery_job('worker:test')
+        `,
+    );
+    expect(firstClaim).toMatchObject({
+      recipientId: '99112233',
+      attempts: 1,
+      accountStatus: 'active',
+    });
+    if (!firstClaim) throw new Error('Instagram delivery was not claimed.');
+
+    await expect(
+      withRuntimeIdentity(
+        'delivery-worker',
+        (tx) =>
+          tx`
+            select app_complete_instagram_delivery_job(
+              ${firstClaim.jobId}::uuid, 'worker:other', 'meta-message-wrong'
+            )
+          `,
+      ),
+    ).rejects.toThrow('Instagram delivery lease is no longer owned');
+
+    const [retry] = await withRuntimeIdentity(
+      'delivery-worker',
+      (tx) =>
+        tx<{ status: string }[]>`
+          select app_fail_instagram_delivery_job(
+            ${firstClaim.jobId}::uuid,
+            'worker:test',
+            'http_503',
+            now() + interval '1 hour'
+          ) as status
+        `,
+    );
+    expect(retry?.status).toBe('pending');
+
+    await admin`
+      update instagram_delivery_jobs
+      set available_at = now() - interval '1 second'
+      where id = ${firstClaim.jobId}::uuid
+    `;
+    const [secondClaim] = await withRuntimeIdentity(
+      'delivery-worker',
+      (tx) =>
+        tx<{ jobId: string; attempts: number }[]>`
+          select job_id::text as "jobId", attempts
+          from app_claim_instagram_delivery_job('worker:test')
+        `,
+    );
+    expect(secondClaim).toEqual({ jobId: firstClaim.jobId, attempts: 2 });
+
+    await withRuntimeIdentity(
+      'delivery-worker',
+      (tx) =>
+        tx`
+          select app_complete_instagram_delivery_job(
+            ${firstClaim.jobId}::uuid, 'worker:test', 'meta-message-1'
+          )
+        `,
+    );
+    const [completed] = await admin<
+      { status: string; attempts: number; externalMessageId: string }[]
+    >`
+      select
+        status::text,
+        attempts,
+        external_message_id as "externalMessageId"
+      from instagram_delivery_jobs
+      where id = ${firstClaim.jobId}::uuid
+    `;
+    expect(completed).toEqual({
+      status: 'delivered',
+      attempts: 2,
+      externalMessageId: 'meta-message-1',
     });
   });
 

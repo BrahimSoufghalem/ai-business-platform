@@ -141,6 +141,12 @@ export const messageProcessingJobStatus = pgEnum('message_processing_job_status'
   'completed',
   'dead',
 ]);
+export const instagramDeliveryJobStatus = pgEnum('instagram_delivery_job_status', [
+  'pending',
+  'processing',
+  'delivered',
+  'dead',
+]);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -1630,6 +1636,73 @@ export const messageProcessingJobs = pgTable(
     check(
       'message_processing_jobs_correlation_not_blank',
       sql`length(trim(${table.correlationId})) > 0`,
+    ),
+  ],
+);
+
+export const instagramDeliveryJobs = pgTable(
+  'instagram_delivery_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    messageId: uuid('message_id').notNull(),
+    status: instagramDeliveryJobStatus('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+    lockedBy: text('locked_by'),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    lastErrorCode: text('last_error_code'),
+    externalMessageId: text('external_message_id'),
+    correlationId: text('correlation_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+      name: 'instagram_delivery_jobs_tenant_conversation_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.tenantId, table.messageId],
+      foreignColumns: [messages.tenantId, messages.id],
+      name: 'instagram_delivery_jobs_tenant_message_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('instagram_delivery_jobs_message_uq').on(table.tenantId, table.messageId),
+    index('instagram_delivery_jobs_ready_idx').on(table.status, table.availableAt, table.createdAt),
+    check('instagram_delivery_jobs_attempts_nonnegative', sql`${table.attempts} >= 0`),
+    check(
+      'instagram_delivery_jobs_max_attempts_positive',
+      sql`${table.maxAttempts} between 1 and 20`,
+    ),
+    check(
+      'instagram_delivery_jobs_attempts_bounded',
+      sql`${table.attempts} <= ${table.maxAttempts}`,
+    ),
+    check(
+      'instagram_delivery_jobs_correlation_not_blank',
+      sql`length(trim(${table.correlationId})) > 0`,
+    ),
+    check(
+      'instagram_delivery_jobs_lock_shape',
+      sql`(
+        (${table.status} = 'processing' and ${table.lockedAt} is not null and ${table.lockedBy} is not null)
+        or
+        (${table.status} <> 'processing' and ${table.lockedAt} is null and ${table.lockedBy} is null)
+      )`,
+    ),
+    check(
+      'instagram_delivery_jobs_terminal_shape',
+      sql`(
+        (${table.status} = 'delivered' and ${table.completedAt} is not null and ${table.externalMessageId} is not null)
+        or
+        (${table.status} = 'dead' and ${table.completedAt} is not null)
+        or
+        (${table.status} in ('pending', 'processing') and ${table.completedAt} is null)
+      )`,
     ),
   ],
 );

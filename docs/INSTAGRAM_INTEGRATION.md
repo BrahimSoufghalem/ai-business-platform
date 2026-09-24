@@ -79,8 +79,34 @@ After validation, each normalized envelope is persisted atomically:
   or job.
 
 The HTTP response reports new, replayed, and queued counts. Live Meta subscription
-remains disabled until the worker consumes these jobs and outbound delivery is
-operational.
+remains disabled until the agent-processing worker consumes these jobs.
+
+## Durable Outbound Delivery
+
+Every outbound message inserted into an Instagram conversation is added
+automatically to `instagram_delivery_jobs`. The worker:
+
+- claims one due job with `FOR UPDATE SKIP LOCKED`;
+- reclaims a lease after five minutes if a worker stops unexpectedly;
+- decrypts the tenant-bound token only for the provider call;
+- retries network errors, timeouts, HTTP 408/429/5xx, and documented transient Meta
+  codes with capped exponential backoff;
+- immediately dead-letters invalid credentials, payloads, recipients, and permanent
+  provider failures;
+- stops after the persisted per-job attempt limit;
+- stores only redacted error codes and writes delivery, retry, and dead-letter audit
+  events.
+
+Run the delivery worker as a separate long-lived process:
+
+```bash
+pnpm --filter @ai-business/worker build
+pnpm --filter @ai-business/worker start
+```
+
+It requires `DATABASE_URL`, `INSTAGRAM_APP_SECRET`,
+`INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY`, and the matching
+`INSTAGRAM_CREDENTIAL_KEY_VERSION`. `WORKER_ID` is optional.
 
 ## Meta Contract
 
@@ -114,9 +140,9 @@ application-level secrets.
 
 ## Remaining Activation Work
 
-1. Consume queued agent jobs and add outbound delivery with bounded retries,
-   rate-limit handling, and a
-   dead-letter queue.
+1. Consume the queued `agent_reply` jobs with a system-scoped customer-agent runner;
+   generated outbound messages will then flow through the implemented delivery
+   outbox automatically.
 2. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
    inbound text, outbound reply, duplicate delivery, invalid signature, expired
    token, and human handoff.
@@ -130,4 +156,6 @@ pnpm --filter @ai-business/integrations lint
 pnpm --filter @ai-business/integrations typecheck
 pnpm --filter @ai-business/integrations test
 pnpm --filter @ai-business/integrations build
+pnpm --filter @ai-business/worker test
+pnpm --filter @ai-business/worker build
 ```
