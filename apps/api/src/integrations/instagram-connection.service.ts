@@ -134,7 +134,7 @@ export class InstagramConnectionService {
             tenant_id, actor_type, actor_id, action, entity_type, entity_id,
             correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject},
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject},
             'instagram.connection.saved', 'instagram_account', ${connection.id},
             ${correlationId}, ${transaction.json({
               accountIdSuffix: input.accountId.slice(-4),
@@ -172,7 +172,7 @@ export class InstagramConnectionService {
           tenant_id, actor_type, actor_id, action, entity_type, entity_id,
           correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject},
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject},
           'instagram.connection.deleted', 'instagram_account', ${deleted.id},
           ${correlationId}, ${transaction.json({
             accountIdSuffix: deleted.accountId.slice(-4),

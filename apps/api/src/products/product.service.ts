@@ -367,7 +367,7 @@ export class ProductService {
             tenant_id, actor_type, actor_id, action, entity_type, entity_id,
             correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'product.created',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product.created',
             'product', ${product.id}, ${correlationId},
             ${transaction.json({ code: product.code, version: product.version })}
           )
@@ -455,7 +455,7 @@ export class ProductService {
             tenant_id, actor_type, actor_id, action, entity_type, entity_id,
             correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'product.updated',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product.updated',
             'product', ${productId}, ${correlationId},
             ${transaction.json({ previousVersion: current.version, version: product.version })}
           )
@@ -515,7 +515,7 @@ export class ProductService {
         insert into audit_events (
           tenant_id, actor_type, actor_id, action, entity_type, entity_id, correlation_id
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'product.published',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product.published',
           'product', ${productId}, ${correlationId}
         )
       `;
@@ -546,7 +546,7 @@ export class ProductService {
         insert into audit_events (
           tenant_id, actor_type, actor_id, action, entity_type, entity_id, correlation_id
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'product.archived',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product.archived',
           'product', ${productId}, ${correlationId}
         )
       `;

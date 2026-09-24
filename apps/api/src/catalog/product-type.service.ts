@@ -213,7 +213,7 @@ export class ProductTypeService {
             tenant_id, actor_type, actor_id, action, entity_type, entity_id,
             correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'product_type.created',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product_type.created',
             'product_type', ${created.id}, ${correlationId},
             ${transaction.json({ schemaVersion: 1, templateKey: input.templateKey ?? null })}
           )
@@ -280,7 +280,7 @@ export class ProductTypeService {
             tenant_id, actor_type, actor_id, action, entity_type, entity_id,
             correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'product_type.updated',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product_type.updated',
             'product_type', ${productTypeId}, ${correlationId},
             ${transaction.json({
               previousSchemaVersion: current.schemaVersion,
@@ -320,7 +320,7 @@ export class ProductTypeService {
         insert into audit_events (
           tenant_id, actor_type, actor_id, action, entity_type, entity_id, correlation_id
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'product_type.archived',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product_type.archived',
           'product_type', ${productTypeId}, ${correlationId}
         )
       `;

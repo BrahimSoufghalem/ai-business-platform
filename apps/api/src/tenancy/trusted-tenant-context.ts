@@ -16,7 +16,7 @@ export function createCandidateTenantContext(
 
   return {
     tenantId: parseTenantId(candidateTenantId),
-    actor: { type: 'user', id: identity.subject },
+    actor: { type: identity.actorType ?? 'user', id: identity.subject },
     correlationId,
   };
 }

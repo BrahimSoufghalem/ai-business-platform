@@ -78,8 +78,26 @@ After validation, each normalized envelope is persisted atomically:
 - replayed webhooks create no duplicate customer, conversation, message, audit event,
   or job.
 
-The HTTP response reports new, replayed, and queued counts. Live Meta subscription
-remains disabled until the agent-processing worker consumes these jobs.
+The HTTP response reports new, replayed, and queued counts.
+
+## Automated Agent Processing
+
+The long-lived worker now polls a protected internal API endpoint for durable
+`agent_reply` jobs. The API:
+
+- claims one due job with a worker-owned, ten-minute lease;
+- runs the existing grounded customer agent as the provisioned
+  `service:customer-agent-worker` principal;
+- grants that principal only the existing `agent` tenant role;
+- writes service-authored audit events rather than impersonating a human user;
+- completes the job after the idempotent reply is stored;
+- schedules capped retries for transient failures and dead-letters permanent or
+  exhausted failures.
+
+The internal endpoint requires `INTERNAL_WORKER_TOKEN` in `X-Worker-Token`.
+Use a random value of at least 32 bytes, keep the same value in the API and worker
+secret managers, and never expose it to the browser. `API_INTERNAL_BASE_URL` tells
+the worker where to reach the API. Production URLs must use HTTPS.
 
 ## Durable Outbound Delivery
 
@@ -104,8 +122,8 @@ pnpm --filter @ai-business/worker build
 pnpm --filter @ai-business/worker start
 ```
 
-It requires `DATABASE_URL`, `INSTAGRAM_APP_SECRET`,
-`INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY`, and the matching
+It requires `DATABASE_URL`, `API_INTERNAL_BASE_URL`, `INTERNAL_WORKER_TOKEN`,
+`INSTAGRAM_APP_SECRET`, `INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY`, and the matching
 `INSTAGRAM_CREDENTIAL_KEY_VERSION`. `WORKER_ID` is optional.
 
 ## Meta Contract
@@ -140,13 +158,10 @@ application-level secrets.
 
 ## Remaining Activation Work
 
-1. Consume the queued `agent_reply` jobs with a system-scoped customer-agent runner;
-   generated outbound messages will then flow through the implemented delivery
-   outbox automatically.
-2. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
+1. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
    inbound text, outbound reply, duplicate delivery, invalid signature, expired
    token, and human handoff.
-3. Complete Meta App Review, privacy review, and the Pilot Go/No-Go checklist before
+2. Complete Meta App Review, privacy review, and the Pilot Go/No-Go checklist before
    connecting a real store.
 
 ## Package Verification
@@ -158,4 +173,5 @@ pnpm --filter @ai-business/integrations test
 pnpm --filter @ai-business/integrations build
 pnpm --filter @ai-business/worker test
 pnpm --filter @ai-business/worker build
+TEST_DATABASE_URL=postgresql://... pnpm --filter @ai-business/api test:integration
 ```

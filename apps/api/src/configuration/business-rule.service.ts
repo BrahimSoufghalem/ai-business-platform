@@ -282,7 +282,7 @@ export class BusinessRuleService {
             tenant_id, actor_type, actor_id, action, entity_type,
             entity_id, correlation_id, metadata
           ) values (
-            ${context.tenantId}, 'user', ${identity.subject}, 'business_rule.created',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'business_rule.created',
             'business_rule_set', ${created.id}, ${correlationId},
             ${transaction.json({ key: input.key, draftVersion: 1 })}
           )
@@ -357,7 +357,7 @@ export class BusinessRuleService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'business_rule.draft.saved',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'business_rule.draft.saved',
           'business_rule_set', ${ruleSetId}, ${correlationId},
           ${transaction.json({ draftVersion: next.version })}
         )
@@ -430,7 +430,7 @@ export class BusinessRuleService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'business_rule.published',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'business_rule.published',
           'business_rule_version', ${versionId}, ${correlationId},
           ${transaction.json({ ruleSetId, version: target.version })}
         )
@@ -537,7 +537,7 @@ export class BusinessRuleService {
           tenant_id, actor_type, actor_id, action, entity_type,
           entity_id, correlation_id, metadata
         ) values (
-          ${context.tenantId}, 'user', ${identity.subject}, 'pricing.decision.created',
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'pricing.decision.created',
           'pricing_decision', ${created.id}, ${correlationId},
           ${transaction.json({
             ruleSetId,

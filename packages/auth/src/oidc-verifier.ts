@@ -10,6 +10,8 @@ export interface VerifiedIdentity {
   readonly subject: string;
   readonly issuer: string;
   readonly email?: string;
+  /** Internal service identities are constructed only after trusted worker authentication. */
+  readonly actorType?: 'user' | 'service';
 }
 
 export interface IdentityVerifier {

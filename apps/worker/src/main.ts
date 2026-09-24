@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDatabaseClient } from '@ai-business/db';
 import { InstagramCredentialVault } from '@ai-business/integrations';
+import { CustomerAgentJobClient } from './customer-agent-job-client.js';
 import { PostgresInstagramDeliveryQueue } from './instagram-delivery-queue.js';
 import { InstagramDeliveryWorker } from './instagram-delivery-worker.js';
 
@@ -29,34 +30,53 @@ function workerId(): string {
 }
 
 export async function startWorker(): Promise<void> {
+  const instanceId = workerId();
   const client = createDatabaseClient(requiredEnvironment('DATABASE_URL'));
   const vault = new InstagramCredentialVault(
     requiredEnvironment('INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY'),
     Number.parseInt(process.env.INSTAGRAM_CREDENTIAL_KEY_VERSION ?? '1', 10),
   );
-  const worker = new InstagramDeliveryWorker({
-    workerId: workerId(),
+  const deliveryWorker = new InstagramDeliveryWorker({
+    workerId: instanceId,
     queue: new PostgresInstagramDeliveryQueue(client),
     credentialVault: vault,
     appSecret: requiredEnvironment('INSTAGRAM_APP_SECRET'),
+  });
+  const agentWorker = new CustomerAgentJobClient({
+    apiBaseUrl: requiredEnvironment('API_INTERNAL_BASE_URL'),
+    workerId: instanceId,
+    workerToken: requiredEnvironment('INTERNAL_WORKER_TOKEN'),
   });
   const abort = new AbortController();
   process.once('SIGINT', () => abort.abort());
   process.once('SIGTERM', () => abort.abort());
 
-  console.log(JSON.stringify({ ...workerStatus(), workerId: workerId() }));
+  console.log(JSON.stringify({ ...workerStatus(), workerId: instanceId }));
   try {
-    await worker.run(abort.signal, {
-      onError: (error) => {
-        console.error(
-          JSON.stringify({
-            service: 'worker',
-            event: 'instagram_delivery_error',
-            error: error instanceof Error ? error.name : 'UnknownError',
-          }),
-        );
-      },
-    });
+    await Promise.all([
+      deliveryWorker.run(abort.signal, {
+        onError: (error) => {
+          console.error(
+            JSON.stringify({
+              service: 'worker',
+              event: 'instagram_delivery_error',
+              error: error instanceof Error ? error.name : 'UnknownError',
+            }),
+          );
+        },
+      }),
+      agentWorker.run(abort.signal, {
+        onError: (error) => {
+          console.error(
+            JSON.stringify({
+              service: 'worker',
+              event: 'customer_agent_job_error',
+              error: error instanceof Error ? error.name : 'UnknownError',
+            }),
+          );
+        },
+      }),
+    ]);
   } finally {
     await client.end();
   }

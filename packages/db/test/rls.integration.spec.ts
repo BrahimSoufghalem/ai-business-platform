@@ -47,6 +47,7 @@ const handoffSourceMessageA = '15151515-1515-4515-8515-151515151515';
 const handoffA = '16161616-1616-4616-8616-161616161616';
 const instagramConversationA = '17171717-1717-4717-8717-171717171717';
 const instagramMessageA = '18181818-1818-4818-8818-181818181818';
+const instagramAgentSourceMessageA = '19191919-1919-4919-8919-191919191919';
 const userA = 'identity-user-a';
 const userB = 'identity-user-b';
 const provisioningUser = 'identity-user-provisioning-test';
@@ -153,6 +154,12 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       GRANT EXECUTE ON FUNCTION app_complete_instagram_delivery_job(uuid, text, text)
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_fail_instagram_delivery_job(uuid, text, text, timestamptz)
+        TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_claim_message_processing_job(text)
+        TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_complete_message_processing_job(uuid, text)
+        TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_fail_message_processing_job(uuid, text, text, timestamptz)
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_provision_tenant(text, text, text, text)
         TO ai_business_runtime;
@@ -325,6 +332,21 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
     expect(rows).toEqual([{ id: tenantA }]);
   });
 
+  it('provisions the least-privilege customer-agent service principal for each tenant', async () => {
+    const [membership] = await withRuntimeTenant(
+      {
+        tenantId: tenantA,
+        actor: { type: 'service', id: 'service:customer-agent-worker' },
+        correlationId: 'service-membership-test',
+      },
+      (tx) =>
+        tx<{ role: string | null }[]>`
+          select app_current_membership_role(${tenantA}) as role
+        `,
+    );
+    expect(membership?.role).toBe('agent');
+  });
+
   it('denies a valid identity that is not a member of the requested tenant', async () => {
     const rows = await withRuntimeTenant(
       context(tenantB, userA),
@@ -334,7 +356,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
     expect(rows).toEqual([]);
   });
 
-  it('isolates memberships by both tenant and identity', async () => {
+  it('isolates tenant memberships while retaining the service principal', async () => {
     const rows = await withRuntimeTenant(
       context(tenantA, userA),
       (tx) =>
@@ -343,7 +365,7 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       `,
     );
 
-    expect(rows).toEqual([{ tenantId: tenantA }]);
+    expect(rows).toEqual([{ tenantId: tenantA }, { tenantId: tenantA }]);
   });
 
   it('isolates dynamic product schemas and their attributes', async () => {
@@ -1801,6 +1823,85 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
       attempts: 2,
       externalMessageId: 'meta-message-1',
     });
+  });
+
+  it('leases, retries, and completes customer-agent jobs durably', async () => {
+    await withRuntimeTenant(context(tenantA, userA), async (tx) => {
+      await tx`
+        insert into messages (
+          id, tenant_id, conversation_id, direction, sender_type,
+          sender_id, external_id, fingerprint, content, metadata
+        ) values (
+          ${instagramAgentSourceMessageA}, ${tenantA}, ${instagramConversationA},
+          'inbound', 'customer', '99112233', 'meta-inbound-agent-test',
+          'customer-agent-job-test', 'هل المنتج متوفر؟', '{}'::jsonb
+        )
+      `;
+      await tx`
+        insert into message_processing_jobs (
+          tenant_id, conversation_id, source_message_id, correlation_id
+        ) values (
+          ${tenantA}, ${instagramConversationA}, ${instagramAgentSourceMessageA},
+          'agent-job-integration'
+        )
+      `;
+    });
+
+    const [firstClaim] = await withRuntimeIdentity(
+      'agent-job-worker',
+      (tx) =>
+        tx<{ jobId: string; attempts: number }[]>`
+          select job_id::text as "jobId", attempts
+          from app_claim_message_processing_job('worker:agent')
+        `,
+    );
+    expect(firstClaim?.attempts).toBe(1);
+    if (!firstClaim) throw new Error('Customer-agent job was not claimed.');
+
+    const [retry] = await withRuntimeIdentity(
+      'agent-job-worker',
+      (tx) =>
+        tx<{ status: string }[]>`
+          select app_fail_message_processing_job(
+            ${firstClaim.jobId}::uuid,
+            'worker:agent',
+            'agent_processing_error',
+            now() + interval '1 hour'
+          ) as status
+        `,
+    );
+    expect(retry?.status).toBe('pending');
+
+    await admin`
+      update message_processing_jobs
+      set available_at = now() - interval '1 second'
+      where id = ${firstClaim.jobId}::uuid
+    `;
+    const [secondClaim] = await withRuntimeIdentity(
+      'agent-job-worker',
+      (tx) =>
+        tx<{ jobId: string; attempts: number }[]>`
+          select job_id::text as "jobId", attempts
+          from app_claim_message_processing_job('worker:agent')
+        `,
+    );
+    expect(secondClaim).toEqual({ jobId: firstClaim.jobId, attempts: 2 });
+
+    await withRuntimeIdentity(
+      'agent-job-worker',
+      (tx) =>
+        tx`
+          select app_complete_message_processing_job(
+            ${firstClaim.jobId}::uuid, 'worker:agent'
+          )
+        `,
+    );
+    const [completed] = await admin<{ status: string; attempts: number }[]>`
+      select status::text, attempts
+      from message_processing_jobs
+      where id = ${firstClaim.jobId}::uuid
+    `;
+    expect(completed).toEqual({ status: 'completed', attempts: 2 });
   });
 
   it('rejects a cross-tenant audit write even when the candidate tenant is supplied', async () => {
