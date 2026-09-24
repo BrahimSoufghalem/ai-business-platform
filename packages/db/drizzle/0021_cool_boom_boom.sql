@@ -199,15 +199,15 @@ BEGIN
   )
   RETURNING id INTO resolved_message_id;
 
-  UPDATE conversations
+  UPDATE conversations AS target
   SET
     last_message_at = greatest(
-      coalesce(last_message_at, least(target_received_at, now())),
+      coalesce(target.last_message_at, least(target_received_at, now())),
       least(target_received_at, now())
     ),
     updated_at = now()
-  WHERE tenant_id = resolved_tenant_id
-    AND id = resolved_conversation_id;
+  WHERE target.tenant_id = resolved_tenant_id
+    AND target.id = resolved_conversation_id;
 
   INSERT INTO message_processing_jobs (
     tenant_id, conversation_id, source_message_id, correlation_id
