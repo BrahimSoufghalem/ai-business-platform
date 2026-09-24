@@ -126,7 +126,8 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
            conversations, messages, conversation_transitions,
            business_rule_sets, business_rule_versions, knowledge_entries,
            knowledge_versions, agent_settings_versions, pricing_decisions,
-           ai_runs, ai_tool_calls, handoffs, instagram_accounts
+           ai_runs, ai_tool_calls, handoffs, instagram_accounts,
+           message_processing_jobs
         TO ai_business_runtime;
       GRANT SELECT, INSERT, UPDATE, DELETE
         ON inventory_movements
@@ -142,6 +143,9 @@ describeWithDatabase('PostgreSQL tenant RLS', () => {
         TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_resolve_instagram_tenant(text)
         TO ai_business_runtime;
+      GRANT EXECUTE ON FUNCTION app_ingest_instagram_message(
+        text, text, text, text, timestamptz, text, jsonb, text, text
+      ) TO ai_business_runtime;
       GRANT EXECUTE ON FUNCTION app_provision_tenant(text, text, text, text)
         TO ai_business_runtime;
     `);

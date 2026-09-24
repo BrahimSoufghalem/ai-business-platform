@@ -135,6 +135,12 @@ export const instagramConnectionStatus = pgEnum('instagram_connection_status', [
   'disabled',
   'reauthorization_required',
 ]);
+export const messageProcessingJobStatus = pgEnum('message_processing_job_status', [
+  'pending',
+  'processing',
+  'completed',
+  'dead',
+]);
 
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -1571,6 +1577,59 @@ export const instagramAccounts = pgTable(
     check(
       'instagram_accounts_fingerprint_shape',
       sql`${table.tokenFingerprint} ~ '^[a-f0-9]{16}$'`,
+    ),
+  ],
+);
+
+export const messageProcessingJobs = pgTable(
+  'message_processing_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    sourceMessageId: uuid('source_message_id').notNull(),
+    kind: text('kind').notNull().default('agent_reply'),
+    status: messageProcessingJobStatus('status').notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    maxAttempts: integer('max_attempts').notNull().default(5),
+    availableAt: timestamp('available_at', { withTimezone: true }).notNull().defaultNow(),
+    lockedAt: timestamp('locked_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    lastErrorCode: text('last_error_code'),
+    correlationId: text('correlation_id').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+      name: 'message_processing_jobs_tenant_conversation_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.tenantId, table.sourceMessageId],
+      foreignColumns: [messages.tenantId, messages.id],
+      name: 'message_processing_jobs_tenant_message_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('message_processing_jobs_message_kind_uq').on(
+      table.tenantId,
+      table.sourceMessageId,
+      table.kind,
+    ),
+    index('message_processing_jobs_ready_idx').on(table.status, table.availableAt, table.createdAt),
+    check('message_processing_jobs_kind_supported', sql`${table.kind} = 'agent_reply'`),
+    check('message_processing_jobs_attempts_nonnegative', sql`${table.attempts} >= 0`),
+    check(
+      'message_processing_jobs_max_attempts_positive',
+      sql`${table.maxAttempts} between 1 and 20`,
+    ),
+    check(
+      'message_processing_jobs_attempts_bounded',
+      sql`${table.attempts} <= ${table.maxAttempts}`,
+    ),
+    check(
+      'message_processing_jobs_correlation_not_blank',
+      sql`length(trim(${table.correlationId})) > 0`,
     ),
   ],
 );

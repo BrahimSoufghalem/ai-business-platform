@@ -68,9 +68,19 @@ https://<api-host>/api/webhooks/instagram
 - A security-definer database lookup resolves the signed Instagram account ID to
   one active tenant. The request body cannot supply a tenant ID.
 
-The endpoint currently validates, resolves, and normalizes supported events. Live
-Meta subscription remains disabled until the next increment persists the normalized
-envelopes idempotently.
+After validation, each normalized envelope is persisted atomically:
+
+- the Instagram-scoped sender ID resolves or creates one tenant customer;
+- one Instagram thread resolves or creates one conversation;
+- the external message ID and a content fingerprint make retries idempotent;
+- the message and audit event are written once;
+- one durable `agent_reply` processing job is queued for each new message;
+- replayed webhooks create no duplicate customer, conversation, message, audit event,
+  or job.
+
+The HTTP response reports new, replayed, and queued counts. Live Meta subscription
+remains disabled until the worker consumes these jobs and outbound delivery is
+operational.
 
 ## Meta Contract
 
@@ -104,14 +114,13 @@ application-level secrets.
 
 ## Remaining Activation Work
 
-1. Persist normalized messages idempotently, acknowledge the webhook quickly, and
-   enqueue agent processing.
-2. Add outbound delivery jobs with bounded retries, rate-limit handling, and a
+1. Consume queued agent jobs and add outbound delivery with bounded retries,
+   rate-limit handling, and a
    dead-letter queue.
-3. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
+2. Configure a Meta test app, subscribe `messages`, and run sandbox cases for
    inbound text, outbound reply, duplicate delivery, invalid signature, expired
    token, and human handoff.
-4. Complete Meta App Review, privacy review, and the Pilot Go/No-Go checklist before
+3. Complete Meta App Review, privacy review, and the Pilot Go/No-Go checklist before
    connecting a real store.
 
 ## Package Verification

@@ -32,11 +32,13 @@ Implemented:
   rotation or deletion.
 - Public subscription verification plus a size-bounded POST pre-parser that validates
   `X-Hub-Signature-256` against raw bytes before JSON parsing.
+- Atomic idempotent creation of the Instagram customer, conversation, inbound message,
+  audit event, and one durable agent-processing job.
 
 Still required before live activation:
 
 - Meta App credentials or secrets.
-- Idempotent webhook ingestion, queued retries, and dead-letter handling.
+- Agent-job consumption, outbound retries, and dead-letter handling.
 - Meta Sandbox validation, App Review, and Pilot Go/No-Go approval.
 - Automated product recognition from media.
 

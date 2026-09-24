@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Header, HttpCode, Inject, Post, Query } from '@nestjs/common';
 import { Public } from '../auth/public.decorator.js';
+import { CorrelationId } from '../auth/request-context.decorator.js';
 import { InstagramWebhookService } from './instagram-webhook.service.js';
 
 @Public()
@@ -17,7 +18,7 @@ export class InstagramWebhookController {
 
   @Post()
   @HttpCode(200)
-  accept(@Body() body: unknown) {
-    return this.webhooks.accept(body);
+  accept(@CorrelationId() correlationId: string, @Body() body: unknown) {
+    return this.webhooks.accept(body, correlationId);
   }
 }
