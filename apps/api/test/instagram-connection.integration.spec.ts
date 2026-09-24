@@ -70,6 +70,12 @@ describeWithDatabase('Instagram tenant connection', () => {
   });
 
   beforeEach(async () => {
+    await admin`delete from message_processing_jobs where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from messages where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from conversation_transitions where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from conversations where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from customer_contacts where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from customers where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from instagram_accounts where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`
       delete from audit_events
@@ -79,6 +85,12 @@ describeWithDatabase('Instagram tenant connection', () => {
   });
 
   afterAll(async () => {
+    await admin`delete from message_processing_jobs where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from messages where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from conversation_transitions where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from conversations where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from customer_contacts where tenant_id in (${tenantA}, ${tenantB})`;
+    await admin`delete from customers where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from instagram_accounts where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from audit_events where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from memberships where tenant_id in (${tenantA}, ${tenantB})`;
