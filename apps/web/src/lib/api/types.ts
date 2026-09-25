@@ -120,7 +120,8 @@ export interface InventoryBalanceView {
   updatedAt: string;
 }
 
-export type InventoryMovementType = 'receive' | 'adjust' | 'reserve' | 'release' | 'sell' | 'return';
+export type InventoryMovementType =
+  'receive' | 'adjust' | 'reserve' | 'release' | 'sell' | 'return';
 
 export interface InventoryMovementView {
   id: string;
@@ -262,7 +263,14 @@ export interface CustomerView extends CustomerSummaryView {
     lastMessageAt: string | null;
     createdAt: string;
   }[];
-  orders: { id: string; number: string; status: string; total: string; currency: string; createdAt: string }[];
+  orders: {
+    id: string;
+    number: string;
+    status: string;
+    total: string;
+    currency: string;
+    createdAt: string;
+  }[];
 }
 
 export type ConversationStatus = 'bot' | 'needs_human' | 'human' | 'closed';
@@ -376,7 +384,8 @@ export interface AgentSettingsHistoryView {
 export interface PricingPolicy {
   currency: string;
   negotiable: boolean;
-  minimumPrice: { type: 'fixed'; amount: string } | { type: 'percentage_of_list'; percentage: number };
+  minimumPrice:
+    { type: 'fixed'; amount: string } | { type: 'percentage_of_list'; percentage: number };
   maxDiscountPercent: number;
   escalation: {
     belowMinimum: 'counter' | 'handoff' | 'reject';

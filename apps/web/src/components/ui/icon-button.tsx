@@ -15,7 +15,9 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
     <button
       ref={ref}
       type="button"
-      className={['icon-btn', size === 'sm' ? 'icon-btn--sm' : '', className ?? ''].filter(Boolean).join(' ')}
+      className={['icon-btn', size === 'sm' ? 'icon-btn--sm' : '', className ?? '']
+        .filter(Boolean)
+        .join(' ')}
       aria-label={label}
       title={label}
       {...rest}

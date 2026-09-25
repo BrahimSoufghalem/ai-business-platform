@@ -2,11 +2,11 @@
 
 ## متغيرات البيئة الجديدة (apps/web)
 
-| المتغير | النوع | المصدر |
-|---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | عام (آمن للمتصفح) | Supabase → Project Settings → API → Project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | عام (anon public key) | Supabase → Project Settings → API → anon public |
-| `NEXT_PUBLIC_API_BASE_URL` | عام | عنوان الـAPI، محليًا `http://localhost:3001/api` |
+| المتغير                         | النوع                 | المصدر                                           |
+| ------------------------------- | --------------------- | ------------------------------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`      | عام (آمن للمتصفح)     | Supabase → Project Settings → API → Project URL  |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | عام (anon public key) | Supabase → Project Settings → API → anon public  |
+| `NEXT_PUBLIC_API_BASE_URL`      | عام                   | عنوان الـAPI، محليًا `http://localhost:3001/api` |
 
 > لا تضع `service_role` في أي متغير `NEXT_PUBLIC_*` إطلاقًا. الـAPI يستمر في التحقق عبر
 > `AUTH_ISSUER` / `AUTH_AUDIENCE` / `AUTH_JWKS_URI` كما هو اليوم.

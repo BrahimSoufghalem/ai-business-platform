@@ -94,7 +94,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Icon name="chevron-down" size={15} />
           </Link>
           <span className="topbar__spacer" />
-          <Suspense><LocaleSwitcher /></Suspense>
+          <Suspense>
+            <LocaleSwitcher />
+          </Suspense>
           <AccountMenu />
         </header>
         <main id="main-content" className="shell-content">

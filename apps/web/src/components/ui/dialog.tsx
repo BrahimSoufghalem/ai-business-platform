@@ -21,7 +21,11 @@ export function Dialog({ open, onClose, title, children, wide }: DialogProps) {
     if (!open) return;
     restoreRef.current = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
-    panel?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus();
+    panel
+      ?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      )
+      ?.focus();
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -31,7 +35,9 @@ export function Dialog({ open, onClose, title, children, wide }: DialogProps) {
       }
       if (event.key !== 'Tab' || !panel) return;
       const focusables = Array.from(
-        panel.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+        panel.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
       ).filter((el) => !el.hasAttribute('disabled'));
       if (focusables.length === 0) return;
       const first = focusables[0];
@@ -67,7 +73,14 @@ export function Dialog({ open, onClose, title, children, wide }: DialogProps) {
         aria-modal="true"
         aria-label={title}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+            gap: 12,
+          }}
+        >
           <h2 className="dialog__title">{title}</h2>
           <IconButton icon="close" label={t('close')} onClick={onClose} size="sm" />
         </div>

@@ -24,7 +24,10 @@ export function Pagination({ page, pageSize, total, onPageChange, hasMore }: Pag
     <nav className="pagination" aria-label={t('pagination')}>
       <span className="pagination__info">
         {total !== null
-          ? t('pageOfTotal', { page: formatNumber(page, locale), total: formatNumber(totalPages ?? page, locale) })
+          ? t('pageOfTotal', {
+              page: formatNumber(page, locale),
+              total: formatNumber(totalPages ?? page, locale),
+            })
           : t('pageOnly', { page: formatNumber(page, locale) })}
       </span>
       <div className="pagination__controls">

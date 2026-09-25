@@ -18,11 +18,20 @@ export function AccountMenu() {
   return (
     <Dropdown label={t('menu')} trigger={<Icon name="users" size={19} />}>
       <DropdownLabel>{t('signedInAs')}</DropdownLabel>
-      <div style={{ padding: '0 12px 8px', fontSize: 'var(--text-md)', fontWeight: 600, overflowWrap: 'anywhere' }}>
+      <div
+        style={{
+          padding: '0 12px 8px',
+          fontSize: 'var(--text-md)',
+          fontWeight: 600,
+          overflowWrap: 'anywhere',
+        }}
+      >
         {displayName}
       </div>
       <DropdownLabel>{t('currentStore')}</DropdownLabel>
-      <div style={{ padding: '0 12px 8px', fontSize: 'var(--text-md)', overflowWrap: 'anywhere' }}>{store.name}</div>
+      <div style={{ padding: '0 12px 8px', fontSize: 'var(--text-md)', overflowWrap: 'anywhere' }}>
+        {store.name}
+      </div>
       <DropdownSeparator />
       <DropdownItem icon="settings" onClick={() => router.push(`/${locale}/settings`)}>
         {t('settings')}

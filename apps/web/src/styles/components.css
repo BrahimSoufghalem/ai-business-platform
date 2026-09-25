@@ -13,7 +13,10 @@
   line-height: 1.2;
   text-decoration: none;
   white-space: nowrap;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
 }
 
 .btn:disabled,
@@ -110,7 +113,9 @@
   height: 44px;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
-  transition: background-color 140ms ease, color 140ms ease;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
 .icon-btn:hover:not(:disabled) {
@@ -165,7 +170,9 @@
   border-radius: var(--radius-sm);
   font-size: var(--text-lg);
   color: var(--text);
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 
 .input::placeholder,
@@ -209,7 +216,8 @@
 .select {
   appearance: none;
   padding-inline-end: var(--sp-8);
-  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
     linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
   background-position:
     calc(100% - 18px) 55%,
@@ -806,7 +814,12 @@
 
 /* ===== Skeleton ===== */
 .skeleton {
-  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background: linear-gradient(
+    90deg,
+    var(--surface-2) 25%,
+    var(--surface-3) 50%,
+    var(--surface-2) 75%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease infinite;
   border-radius: var(--radius-sm);

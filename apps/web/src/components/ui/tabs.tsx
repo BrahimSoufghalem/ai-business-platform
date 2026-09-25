@@ -10,7 +10,15 @@ export interface TabItem {
 }
 
 /** URL-synced tabs (query param) so tab state survives refresh and language switch. */
-export function Tabs({ items, active, param = 'tab' }: { items: TabItem[]; active: string; param?: string }) {
+export function Tabs({
+  items,
+  active,
+  param = 'tab',
+}: {
+  items: TabItem[];
+  active: string;
+  param?: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

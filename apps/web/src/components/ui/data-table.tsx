@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 
-export function TableWrap({ children, label }: { children: ReactNode; label?: string | undefined }) {
+export function TableWrap({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label?: string | undefined;
+}) {
   return (
     <div className="table-wrap" tabIndex={0} role="region" aria-label={label}>
       {children}
@@ -26,7 +32,15 @@ export function DataTable({ caption, head, children }: DataTableProps) {
   );
 }
 
-export function Th({ children, numeric, scope = 'col' }: { children?: ReactNode; numeric?: boolean; scope?: 'col' | 'row' }) {
+export function Th({
+  children,
+  numeric,
+  scope = 'col',
+}: {
+  children?: ReactNode;
+  numeric?: boolean;
+  scope?: 'col' | 'row';
+}) {
   return (
     <th scope={scope} className={numeric ? 'cell-num' : undefined}>
       {children}
@@ -46,7 +60,12 @@ export function Td({
   colSpan?: number;
 }) {
   return (
-    <td className={[numeric ? 'cell-num' : '', ellipsis ? 'cell-ellipsis' : ''].filter(Boolean).join(' ')} colSpan={colSpan}>
+    <td
+      className={[numeric ? 'cell-num' : '', ellipsis ? 'cell-ellipsis' : '']
+        .filter(Boolean)
+        .join(' ')}
+      colSpan={colSpan}
+    >
       {children}
     </td>
   );

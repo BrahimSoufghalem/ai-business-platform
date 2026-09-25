@@ -5,7 +5,11 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useApi, useTenantPath } from '../../../../components/providers';
 import { useAsyncData } from '../../../../lib/use-async-data';
 import { formatDate } from '../../../../lib/format';
-import type { AttributeDataType, ProductTypeTemplateView, ProductTypeView } from '../../../../lib/api/types';
+import type {
+  AttributeDataType,
+  ProductTypeTemplateView,
+  ProductTypeView,
+} from '../../../../lib/api/types';
 import { Badge } from '../../../../components/ui/badge';
 import { Button } from '../../../../components/ui/button';
 import { DataTable, TableWrap, Td, Th } from '../../../../components/ui/data-table';
@@ -52,8 +56,14 @@ export function ProductTypesStudio() {
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ProductTypeView | null>(null);
 
-  const typesQuery = useAsyncData<ProductTypeView[]>((signal) => api.get(tenant('/product-types'), { signal }), [api, tenant]);
-  const templatesQuery = useAsyncData<ProductTypeTemplateView[]>((signal) => api.get('/product-type-templates', { signal }), [api]);
+  const typesQuery = useAsyncData<ProductTypeView[]>(
+    (signal) => api.get(tenant('/product-types'), { signal }),
+    [api, tenant],
+  );
+  const templatesQuery = useAsyncData<ProductTypeTemplateView[]>(
+    (signal) => api.get('/product-type-templates', { signal }),
+    [api],
+  );
 
   async function remove(target: ProductTypeView) {
     await api.delete(tenant(`/product-types/${target.id}`));
@@ -70,7 +80,11 @@ export function ProductTypesStudio() {
       </div>
 
       {typesQuery.loading ? (
-        <div className="panel"><div className="panel__body"><Skeleton lines={4} height={18} /></div></div>
+        <div className="panel">
+          <div className="panel__body">
+            <Skeleton lines={4} height={18} />
+          </div>
+        </div>
       ) : typesQuery.error ? (
         <ErrorState onRetry={typesQuery.reload} />
       ) : (typesQuery.data ?? []).length === 0 ? (
@@ -88,16 +102,34 @@ export function ProductTypesStudio() {
         </div>
       ) : (
         <TableWrap>
-          <DataTable caption={t('title')} head={<><Th>{t('typeName')}</Th> <Th>{t('slug')}</Th> <Th numeric>{t('attributes')}</Th> <Th>{tc('status')}</Th> <Th>{tc('createdAt')}</Th> <Th>
-              <span className="visually-hidden">{tc('actions')}</span>
-            </Th></>}>{(typesQuery.data ?? []).map((type) => (
+          <DataTable
+            caption={t('title')}
+            head={
+              <>
+                <Th>{t('typeName')}</Th> <Th>{t('slug')}</Th> <Th numeric>{t('attributes')}</Th>{' '}
+                <Th>{tc('status')}</Th> <Th>{tc('createdAt')}</Th>{' '}
+                <Th>
+                  <span className="visually-hidden">{tc('actions')}</span>
+                </Th>
+              </>
+            }
+          >
+            {(typesQuery.data ?? []).map((type) => (
               <tr key={type.id}>
                 <Td ellipsis>
-                  <span className="cell-main" dir="auto">{type.name}</span>
-                  {type.description ? <div className="cell-sub" dir="auto">{type.description}</div> : null}
+                  <span className="cell-main" dir="auto">
+                    {type.name}
+                  </span>
+                  {type.description ? (
+                    <div className="cell-sub" dir="auto">
+                      {type.description}
+                    </div>
+                  ) : null}
                 </Td>
                 <Td>
-                  <span className="num" translate="no">{type.slug}</span>
+                  <span className="num" translate="no">
+                    {type.slug}
+                  </span>
                 </Td>
                 <Td numeric>{type.attributes.length}</Td>
                 <Td>
@@ -109,7 +141,11 @@ export function ProductTypesStudio() {
                   <span className="cell-sub">{formatDate(type.createdAt, locale)}</span>
                 </Td>
                 <Td>
-                  <Button variant="danger-secondary" size="sm" onClick={() => setDeleteTarget(type)}>
+                  <Button
+                    variant="danger-secondary"
+                    size="sm"
+                    onClick={() => setDeleteTarget(type)}
+                  >
                     {tc('delete')}
                   </Button>
                 </Td>
@@ -128,7 +164,9 @@ export function ProductTypesStudio() {
       <ConfirmDialog
         open={deleteTarget !== null}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={async () => { if (deleteTarget) await remove(deleteTarget); }}
+        onConfirm={async () => {
+          if (deleteTarget) await remove(deleteTarget);
+        }}
         title={t('deleteTitle')}
         body={t('deleteBody')}
         confirmLabel={tc('delete')}
@@ -183,7 +221,9 @@ function ProductTypeCreateDialog({
   }
 
   function updateAttribute(index: number, patch: Partial<AttributeDraft>) {
-    setAttributes((current) => current.map((attribute, i) => (i === index ? { ...attribute, ...patch } : attribute)));
+    setAttributes((current) =>
+      current.map((attribute, i) => (i === index ? { ...attribute, ...patch } : attribute)),
+    );
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -206,7 +246,12 @@ function ProductTypeCreateDialog({
             required: attribute.required,
             variantAxis: attribute.variantAxis,
             ...(attribute.dataType === 'select' || attribute.dataType === 'multi_select'
-              ? { options: attribute.options.split(',').map((option) => option.trim()).filter(Boolean) }
+              ? {
+                  options: attribute.options
+                    .split(',')
+                    .map((option) => option.trim())
+                    .filter(Boolean),
+                }
               : {}),
           })),
       });
@@ -230,7 +275,13 @@ function ProductTypeCreateDialog({
       <form onSubmit={submit} className="stack mt-4">
         <div className="form-grid">
           <FormField label={t('typeName')} required>
-            <Input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              minLength={2}
+              maxLength={80}
+            />
           </FormField>
           <FormField label={t('slug')} required hint={t('slugHint')}>
             <Input
@@ -244,7 +295,12 @@ function ProductTypeCreateDialog({
           </FormField>
         </div>
         <FormField label={tc('description')}>
-          <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} maxLength={500} />
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            maxLength={500}
+          />
         </FormField>
         <FormField label={t('template')}>
           <Select value={templateKey} onChange={(e) => applyTemplate(e.target.value)}>
@@ -268,13 +324,28 @@ function ProductTypeCreateDialog({
                 <div className="panel__body">
                   <div className="form-grid">
                     <FormField label={t('attrKey')} required>
-                      <Input value={attribute.key} onChange={(e) => updateAttribute(index, { key: e.target.value })} dir="ltr" style={{ textAlign: 'start' }} required />
+                      <Input
+                        value={attribute.key}
+                        onChange={(e) => updateAttribute(index, { key: e.target.value })}
+                        dir="ltr"
+                        style={{ textAlign: 'start' }}
+                        required
+                      />
                     </FormField>
                     <FormField label={t('attrLabel')} required>
-                      <Input value={attribute.label} onChange={(e) => updateAttribute(index, { label: e.target.value })} required />
+                      <Input
+                        value={attribute.label}
+                        onChange={(e) => updateAttribute(index, { label: e.target.value })}
+                        required
+                      />
                     </FormField>
                     <FormField label={t('attrType')} required>
-                      <Select value={attribute.dataType} onChange={(e) => updateAttribute(index, { dataType: e.target.value as AttributeDataType })}>
+                      <Select
+                        value={attribute.dataType}
+                        onChange={(e) =>
+                          updateAttribute(index, { dataType: e.target.value as AttributeDataType })
+                        }
+                      >
                         <option value="text">text</option>
                         <option value="number">number</option>
                         <option value="boolean">boolean</option>
@@ -284,14 +355,43 @@ function ProductTypeCreateDialog({
                     </FormField>
                     {attribute.dataType === 'select' || attribute.dataType === 'multi_select' ? (
                       <FormField label={t('attrOptions')} required>
-                        <Input value={attribute.options} onChange={(e) => updateAttribute(index, { options: e.target.value })} required dir="auto" />
+                        <Input
+                          value={attribute.options}
+                          onChange={(e) => updateAttribute(index, { options: e.target.value })}
+                          required
+                          dir="auto"
+                        />
                       </FormField>
                     ) : null}
                   </div>
-                  <div style={{ display: 'flex', gap: 16, marginTop: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Checkbox label={t('attrRequired')} checked={attribute.required} onChange={(e) => updateAttribute(index, { required: e.target.checked })} />
-                    <Checkbox label={t('attrVariantAxis')} checked={attribute.variantAxis} onChange={(e) => updateAttribute(index, { variantAxis: e.target.checked })} />
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setAttributes((current) => current.filter((_, i) => i !== index))} style={{ marginInlineStart: 'auto' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 16,
+                      marginTop: 8,
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <Checkbox
+                      label={t('attrRequired')}
+                      checked={attribute.required}
+                      onChange={(e) => updateAttribute(index, { required: e.target.checked })}
+                    />
+                    <Checkbox
+                      label={t('attrVariantAxis')}
+                      checked={attribute.variantAxis}
+                      onChange={(e) => updateAttribute(index, { variantAxis: e.target.checked })}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setAttributes((current) => current.filter((_, i) => i !== index))
+                      }
+                      style={{ marginInlineStart: 'auto' }}
+                    >
                       {tc('delete')}
                     </Button>
                   </div>
@@ -300,7 +400,13 @@ function ProductTypeCreateDialog({
             ))}
           </div>
           <div>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setAttributes((current) => [...current, { ...emptyAttribute }])} icon={<Icon name="plus" size={15} />}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setAttributes((current) => [...current, { ...emptyAttribute }])}
+              icon={<Icon name="plus" size={15} />}
+            >
               {t('addAttribute')}
             </Button>
           </div>

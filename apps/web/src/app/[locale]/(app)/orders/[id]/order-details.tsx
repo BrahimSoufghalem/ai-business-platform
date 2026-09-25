@@ -15,10 +15,10 @@ import { Button } from '../../../../../components/ui/button';
 import { DataTable, TableWrap, Td, Th } from '../../../../../components/ui/data-table';
 import { Skeleton } from '../../../../../components/ui/skeleton';
 import { ErrorState } from '../../../../../components/ui/error-state';
-import { ConfirmDialog } from '../../../../../components/ui/confirm-dialog';
 import { Dialog } from '../../../../../components/ui/dialog';
 import { Textarea } from '../../../../../components/ui/textarea';
 import { FormField } from '../../../../../components/ui/form-field';
+import { InlineAlert } from '../../../../../components/ui/alert';
 import { Icon } from '../../../../../components/icons';
 import { useToast } from '../../../../../components/ui/toast';
 import { orderStatusKey, orderStatusTone } from '../orders-table';
@@ -40,8 +40,14 @@ const TIMELINE_STEPS: { status: OrderStatus; atKey: keyof OrderView }[] = [
 ];
 
 function addressToText(address: Record<string, unknown>): string {
-  const parts = [address.line1, address.line2, address.city, address.region, address.postalCode, address.countryCode]
-    .filter((part) => typeof part === 'string' && part.trim().length > 0);
+  const parts = [
+    address.line1,
+    address.line2,
+    address.city,
+    address.region,
+    address.postalCode,
+    address.countryCode,
+  ].filter((part) => typeof part === 'string' && part.trim().length > 0);
   return parts.join('، ');
 }
 
@@ -59,9 +65,14 @@ export function OrderDetails() {
   const [transitionTarget, setTransitionTarget] = useState<OrderStatus | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [reason, setReason] = useState('');
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelError, setCancelError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const query = useAsyncData<OrderView>((signal) => api.get(tenant(`/orders/${params.id}`), { signal }), [api, tenant, params.id]);
+  const query = useAsyncData<OrderView>(
+    (signal) => api.get(tenant(`/orders/${params.id}`), { signal }),
+    [api, tenant, params.id],
+  );
   const order = query.data;
 
   async function runTransition(target: OrderStatus) {
@@ -84,13 +95,27 @@ export function OrderDetails() {
 
   async function cancelOrder() {
     if (!order) return;
-    await api.post(tenant(`/orders/${order.id}/cancel`), {
-      reason: reason.trim() || undefined,
-      idempotencyKey: crypto.randomUUID(),
-    });
-    toast(t('cancelled'), 'success');
-    setReason('');
-    query.reload();
+    const trimmedReason = cancelReason.trim();
+    if (trimmedReason.length < 3) {
+      setCancelError(t('cancelReasonRequired'));
+      return;
+    }
+    setPending(true);
+    setCancelError(null);
+    try {
+      await api.post(tenant(`/orders/${order.id}/cancel`), {
+        reason: trimmedReason,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      toast(t('cancelled'), 'success');
+      setConfirmCancel(false);
+      setCancelReason('');
+      query.reload();
+    } catch {
+      setCancelError(t('cancelFailed'));
+    } finally {
+      setPending(false);
+    }
   }
 
   if (query.loading) {
@@ -104,23 +129,41 @@ export function OrderDetails() {
 
   if (query.error || !order) return <ErrorState onRetry={query.reload} />;
 
-  const nextActions = canWrite ? NEXT_STATUS[order.status] ?? [] : [];
+  const nextActions = canWrite ? (NEXT_STATUS[order.status] ?? []) : [];
   const cancellable = canWrite && order.status !== 'delivered' && order.status !== 'cancelled';
 
   return (
     <>
       <PageHeader
-        title={<span translate="no" className="num">{order.number}</span>}
-        breadcrumb={<Breadcrumbs items={[{ label: t('title'), href: '/orders' }, { label: order.number }]} />}
+        title={
+          <span translate="no" className="num">
+            {order.number}
+          </span>
+        }
+        breadcrumb={
+          <Breadcrumbs items={[{ label: t('title'), href: '/orders' }, { label: order.number }]} />
+        }
         actions={
           <>
             {nextActions.map((action) => (
-              <Button key={action.target} onClick={() => setTransitionTarget(action.target)} icon={<Icon name="check" size={16} />}>
+              <Button
+                key={action.target}
+                onClick={() => setTransitionTarget(action.target)}
+                icon={<Icon name="check" size={16} />}
+              >
                 {t(action.labelKey)}
               </Button>
             ))}
             {cancellable ? (
-              <Button variant="danger-secondary" onClick={() => setConfirmCancel(true)} icon={<Icon name="close" size={16} />}>
+              <Button
+                variant="danger-secondary"
+                onClick={() => {
+                  setCancelReason('');
+                  setCancelError(null);
+                  setConfirmCancel(true);
+                }}
+                icon={<Icon name="close" size={16} />}
+              >
                 {t('cancelOrder')}
               </Button>
             ) : null}
@@ -137,14 +180,31 @@ export function OrderDetails() {
             </div>
             <div className="panel__body panel__body--flush">
               <TableWrap>
-                <DataTable head={<><Th>{tc('name')}</Th> <Th>SKU</Th> <Th numeric>{tc('quantity')}</Th> <Th numeric>{tc('price')}</Th> <Th numeric>{t('total')}</Th></>}>{order.items.map((item) => (
+                <DataTable
+                  head={
+                    <>
+                      <Th>{tc('name')}</Th> <Th>SKU</Th> <Th numeric>{tc('quantity')}</Th>{' '}
+                      <Th numeric>{tc('price')}</Th> <Th numeric>{t('total')}</Th>
+                    </>
+                  }
+                >
+                  {order.items.map((item) => (
                     <tr key={item.id}>
                       <Td ellipsis>
-                        <span className="cell-main" dir="auto">{item.productName}</span>
-                        {item.variantName ? <span className="cell-sub" dir="auto"> {item.variantName}</span> : null}
+                        <span className="cell-main" dir="auto">
+                          {item.productName}
+                        </span>
+                        {item.variantName ? (
+                          <span className="cell-sub" dir="auto">
+                            {' '}
+                            {item.variantName}
+                          </span>
+                        ) : null}
                       </Td>
                       <Td>
-                        <span className="num" translate="no">{item.sku}</span>
+                        <span className="num" translate="no">
+                          {item.sku}
+                        </span>
                       </Td>
                       <Td numeric>{item.quantity}</Td>
                       <Td numeric>{formatMoney(item.unitPrice, item.currency, locale)}</Td>
@@ -162,8 +222,12 @@ export function OrderDetails() {
                 <dd className="num">{formatMoney(order.discountAmount, order.currency, locale)}</dd>
                 <dt>{t('shipping')}</dt>
                 <dd className="num">{formatMoney(order.shippingAmount, order.currency, locale)}</dd>
-                <dt><strong>{t('total')}</strong></dt>
-                <dd className="num"><strong>{formatMoney(order.total, order.currency, locale)}</strong></dd>
+                <dt>
+                  <strong>{t('total')}</strong>
+                </dt>
+                <dd className="num">
+                  <strong>{formatMoney(order.total, order.currency, locale)}</strong>
+                </dd>
               </dl>
             </div>
           </section>
@@ -180,21 +244,36 @@ export function OrderDetails() {
                   const reached = at !== null;
                   const isCurrent = order.status === step.status;
                   return (
-                    <li key={step.status} className={`timeline__item${isCurrent ? ' timeline__item--current' : ''}`}>
-                      <span className="timeline__dot" aria-hidden="true" style={reached ? { background: 'var(--success)' } : undefined} />
+                    <li
+                      key={step.status}
+                      className={`timeline__item${isCurrent ? ' timeline__item--current' : ''}`}
+                    >
+                      <span
+                        className="timeline__dot"
+                        aria-hidden="true"
+                        style={reached ? { background: 'var(--success)' } : undefined}
+                      />
                       <div>
                         <p className="timeline__title">{t(orderStatusKey[step.status])}</p>
-                        <p className="timeline__meta">{reached ? formatDateTime(at, locale) : '—'}</p>
+                        <p className="timeline__meta">
+                          {reached ? formatDateTime(at, locale) : '—'}
+                        </p>
                       </div>
                     </li>
                   );
                 })}
                 {order.status === 'cancelled' ? (
                   <li className="timeline__item timeline__item--current">
-                    <span className="timeline__dot" aria-hidden="true" style={{ background: 'var(--danger)' }} />
+                    <span
+                      className="timeline__dot"
+                      aria-hidden="true"
+                      style={{ background: 'var(--danger)' }}
+                    />
                     <div>
                       <p className="timeline__title">{t('statusCancelled')}</p>
-                      <p className="timeline__meta">{order.cancelledAt ? formatDateTime(order.cancelledAt, locale) : '—'}</p>
+                      <p className="timeline__meta">
+                        {order.cancelledAt ? formatDateTime(order.cancelledAt, locale) : '—'}
+                      </p>
                     </div>
                   </li>
                 ) : null}
@@ -213,11 +292,15 @@ export function OrderDetails() {
                 <dt>{tc('name')}</dt>
                 <dd dir="auto">{order.customerName}</dd>
                 <dt>{t('colCustomer')}</dt>
-                <dd dir="ltr" style={{ textAlign: 'start' }}>{order.customerPhone}</dd>
+                <dd dir="ltr" style={{ textAlign: 'start' }}>
+                  {order.customerPhone}
+                </dd>
                 {order.customerEmail ? (
                   <>
                     <dt>{tc('optional')}</dt>
-                    <dd dir="ltr" style={{ textAlign: 'start' }}>{order.customerEmail}</dd>
+                    <dd dir="ltr" style={{ textAlign: 'start' }}>
+                      {order.customerEmail}
+                    </dd>
                   </>
                 ) : null}
                 <dt>{t('shippingAddress')}</dt>
@@ -246,7 +329,8 @@ export function OrderDetails() {
                 <ul className="stack" style={{ gap: 8 }}>
                   {order.transitions.map((transition) => (
                     <li key={transition.id} className="meta-text">
-                      {transition.fromStatus ? t(orderStatusKey[transition.fromStatus]) : '—'} ← {t(orderStatusKey[transition.toStatus])}
+                      {transition.fromStatus ? t(orderStatusKey[transition.fromStatus]) : '—'} ←{' '}
+                      {t(orderStatusKey[transition.toStatus])}
                       {' · '}
                       {formatDateTime(transition.createdAt, locale)}
                       {transition.reason ? <span dir="auto"> · {transition.reason}</span> : null}
@@ -259,29 +343,72 @@ export function OrderDetails() {
         </div>
       </div>
 
-      <Dialog open={transitionTarget !== null} onClose={() => setTransitionTarget(null)} title={transitionTarget ? t(NEXT_STATUS[order.status]?.find((a) => a.target === transitionTarget)?.labelKey ?? '') : ''}>
+      <Dialog
+        open={transitionTarget !== null}
+        onClose={() => setTransitionTarget(null)}
+        title={
+          transitionTarget
+            ? t(
+                NEXT_STATUS[order.status]?.find((a) => a.target === transitionTarget)?.labelKey ??
+                  '',
+              )
+            : ''
+        }
+      >
         <FormField label={t('transitionReason')}>
-          <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} />
+          <Textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            maxLength={500}
+          />
         </FormField>
         <div className="dialog__actions">
           <Button variant="secondary" onClick={() => setTransitionTarget(null)} disabled={pending}>
             {tc('cancel')}
           </Button>
-          <Button onClick={() => transitionTarget && runTransition(transitionTarget)} loading={pending}>
+          <Button
+            onClick={() => transitionTarget && runTransition(transitionTarget)}
+            loading={pending}
+          >
             {tc('confirm')}
           </Button>
         </div>
       </Dialog>
 
-      <ConfirmDialog
+      <Dialog
         open={confirmCancel}
-        onClose={() => setConfirmCancel(false)}
-        onConfirm={cancelOrder}
+        onClose={() => {
+          if (!pending) setConfirmCancel(false);
+        }}
         title={t('cancelTitle')}
-        body={t('cancelBody', { number: order.number })}
-        confirmLabel={t('cancelOrder')}
-        danger
-      />
+      >
+        <p className="meta-text">{t('cancelBody', { number: order.number })}</p>
+        {cancelError ? <InlineAlert kind="error">{cancelError}</InlineAlert> : null}
+        <FormField label={t('cancelReason')} required>
+          <Textarea
+            value={cancelReason}
+            onChange={(event) => setCancelReason(event.target.value)}
+            minLength={3}
+            maxLength={500}
+            rows={3}
+            required
+          />
+        </FormField>
+        <div className="dialog__actions">
+          <Button variant="secondary" onClick={() => setConfirmCancel(false)} disabled={pending}>
+            {tc('cancel')}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => void cancelOrder()}
+            loading={pending}
+            disabled={cancelReason.trim().length < 3}
+          >
+            {t('cancelOrder')}
+          </Button>
+        </div>
+      </Dialog>
     </>
   );
 }

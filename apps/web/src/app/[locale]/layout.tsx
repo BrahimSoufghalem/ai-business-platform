@@ -45,7 +45,11 @@ export default async function LocaleLayout({
   setRequestLocale(locale);
 
   return (
-    <html lang={locale} dir={localeDirection[locale]} className={`${inter.variable} ${plexArabic.variable}`}>
+    <html
+      lang={locale}
+      dir={localeDirection[locale]}
+      className={`${inter.variable} ${plexArabic.variable}`}
+    >
       <body>
         <NextIntlClientProvider>{children}</NextIntlClientProvider>
       </body>

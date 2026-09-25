@@ -85,8 +85,14 @@ export function ProductForm({ product }: { product: ProductView | null }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
 
-  const typesQuery = useAsyncData<ProductTypeView[]>((signal) => api.get(tenant('/product-types'), { signal }), [api, tenant]);
-  const types = useMemo(() => (typesQuery.data ?? []).filter((type) => type.status === 'active'), [typesQuery.data]);
+  const typesQuery = useAsyncData<ProductTypeView[]>(
+    (signal) => api.get(tenant('/product-types'), { signal }),
+    [api, tenant],
+  );
+  const types = useMemo(
+    () => (typesQuery.data ?? []).filter((type) => type.status === 'active'),
+    [typesQuery.data],
+  );
   const selectedType = types.find((type) => type.id === state.productTypeId) ?? null;
 
   useEffect(() => {
@@ -128,13 +134,18 @@ export function ProductForm({ product }: { product: ProductView | null }) {
     setDirty(true);
     setState((current) => ({
       ...current,
-      variants: current.variants.map((variant, i) => (i === index ? { ...variant, ...patch } : variant)),
+      variants: current.variants.map((variant, i) =>
+        i === index ? { ...variant, ...patch } : variant,
+      ),
     }));
   }
 
   function removeVariant(index: number) {
     setDirty(true);
-    setState((current) => ({ ...current, variants: current.variants.filter((_, i) => i !== index) }));
+    setState((current) => ({
+      ...current,
+      variants: current.variants.filter((_, i) => i !== index),
+    }));
   }
 
   async function submit(publishAfter: boolean) {
@@ -225,7 +236,13 @@ export function ProductForm({ product }: { product: ProductView | null }) {
         <div className="panel__body">
           <div className="form-grid">
             <FormField label={tc('name')} required>
-              <Input value={state.name} onChange={(e) => update('name', e.target.value)} minLength={2} maxLength={160} required />
+              <Input
+                value={state.name}
+                onChange={(e) => update('name', e.target.value)}
+                minLength={2}
+                maxLength={160}
+                required
+              />
             </FormField>
             <FormField label={t('code')} required hint={t('codeHint')}>
               <Input
@@ -238,7 +255,11 @@ export function ProductForm({ product }: { product: ProductView | null }) {
               />
             </FormField>
             <FormField label={t('productType')} required>
-              <Select value={state.productTypeId} onChange={(e) => update('productTypeId', e.target.value)} required>
+              <Select
+                value={state.productTypeId}
+                onChange={(e) => update('productTypeId', e.target.value)}
+                required
+              >
                 <option value="">{t('selectType')}</option>
                 {types.map((type) => (
                   <option key={type.id} value={type.id}>
@@ -270,13 +291,21 @@ export function ProductForm({ product }: { product: ProductView | null }) {
               />
             </FormField>
             <FormField label={t('initialStatus')}>
-              <Select value={state.status} onChange={(e) => update('status', e.target.value as 'draft' | 'active')}>
+              <Select
+                value={state.status}
+                onChange={(e) => update('status', e.target.value as 'draft' | 'active')}
+              >
                 <option value="draft">{t('statusDraft')}</option>
                 <option value="active">{t('statusActive')}</option>
               </Select>
             </FormField>
             <FormField label={tc('description')} className="field--full">
-              <Textarea value={state.description} onChange={(e) => update('description', e.target.value)} maxLength={5000} rows={4} />
+              <Textarea
+                value={state.description}
+                onChange={(e) => update('description', e.target.value)}
+                maxLength={5000}
+                rows={4}
+              />
             </FormField>
           </div>
         </div>
@@ -290,7 +319,13 @@ export function ProductForm({ product }: { product: ProductView | null }) {
           <div className="panel__body">
             <div className="form-grid">
               {productAttributes(selectedType.attributes).map((definition) => (
-                <AttributeInput key={definition.key} definition={definition} value={state.attributes[definition.key]} onChange={(value) => setAttribute(definition.key, value)} label={t('attributeValue')} />
+                <AttributeInput
+                  key={definition.key}
+                  definition={definition}
+                  value={state.attributes[definition.key]}
+                  onChange={(value) => setAttribute(definition.key, value)}
+                  label={t('attributeValue')}
+                />
               ))}
             </div>
           </div>
@@ -300,7 +335,13 @@ export function ProductForm({ product }: { product: ProductView | null }) {
       <section className="panel">
         <div className="panel__header">
           <h2 className="panel__title">{t('variantsSection')}</h2>
-          <Button type="button" variant="secondary" size="sm" onClick={addVariant} icon={<Icon name="plus" size={15} />}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={addVariant}
+            icon={<Icon name="plus" size={15} />}
+          >
             {t('addVariant')}
           </Button>
         </div>
@@ -323,7 +364,10 @@ export function ProductForm({ product }: { product: ProductView | null }) {
                         />
                       </FormField>
                       <FormField label={t('variantName')}>
-                        <Input value={variant.name} onChange={(e) => updateVariant(index, { name: e.target.value })} />
+                        <Input
+                          value={variant.name}
+                          onChange={(e) => updateVariant(index, { name: e.target.value })}
+                        />
                       </FormField>
                       <FormField label={t('priceOverride')}>
                         <Input
@@ -341,7 +385,10 @@ export function ProductForm({ product }: { product: ProductView | null }) {
                                 value={variant.attributes[definition.key] ?? ''}
                                 onChange={(e) =>
                                   updateVariant(index, {
-                                    attributes: { ...variant.attributes, [definition.key]: e.target.value },
+                                    attributes: {
+                                      ...variant.attributes,
+                                      [definition.key]: e.target.value,
+                                    },
                                   })
                                 }
                               />
@@ -350,7 +397,11 @@ export function ProductForm({ product }: { product: ProductView | null }) {
                         : null}
                     </div>
                     <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                      <IconButton icon="trash" label={tc('delete')} onClick={() => removeVariant(index)} />
+                      <IconButton
+                        icon="trash"
+                        label={tc('delete')}
+                        onClick={() => removeVariant(index)}
+                      />
                     </div>
                   </div>
                 </div>
@@ -400,7 +451,10 @@ function AttributeInput({
   if (definition.dataType === 'select') {
     return (
       <FormField label={definition.label} required={definition.required}>
-        <Select value={typeof value === 'string' ? value : ''} onChange={(e) => onChange(e.target.value || undefined)}>
+        <Select
+          value={typeof value === 'string' ? value : ''}
+          onChange={(e) => onChange(e.target.value || undefined)}
+        >
           <option value="">—</option>
           {definition.options.map((option) => (
             <option key={option} value={option}>
@@ -416,7 +470,9 @@ function AttributeInput({
       <Input
         value={typeof value === 'string' || typeof value === 'number' ? String(value) : ''}
         inputMode={definition.dataType === 'number' ? 'decimal' : undefined}
-        onChange={(e) => onChange(definition.dataType === 'number' ? Number(e.target.value) : e.target.value)}
+        onChange={(e) =>
+          onChange(definition.dataType === 'number' ? Number(e.target.value) : e.target.value)
+        }
         aria-label={`${definition.label} ${label}`}
       />
     </FormField>

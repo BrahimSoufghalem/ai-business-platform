@@ -58,7 +58,10 @@ export function OrdersTable() {
     return params.toString();
   }, [q, status]);
 
-  const query = useAsyncData<OrderView[]>((signal) => api.get(tenant(`/orders?${queryString}`), { signal }), [api, queryString, tenant]);
+  const query = useAsyncData<OrderView[]>(
+    (signal) => api.get(tenant(`/orders?${queryString}`), { signal }),
+    [api, queryString, tenant],
+  );
 
   const paged = useMemo(() => {
     const all = query.data ?? [];
@@ -66,7 +69,14 @@ export function OrdersTable() {
     return { rows: all.slice(start, start + PAGE_SIZE), total: all.length };
   }, [query.data, page]);
 
-  const statuses: OrderStatus[] = ['new', 'confirmed', 'preparing', 'shipped', 'delivered', 'cancelled'];
+  const statuses: OrderStatus[] = [
+    'new',
+    'confirmed',
+    'preparing',
+    'shipped',
+    'delivered',
+    'cancelled',
+  ];
 
   return (
     <>
@@ -87,7 +97,11 @@ export function OrdersTable() {
             aria-label={t('searchPlaceholder')}
           />
         </form>
-        <Select aria-label={t('colStatus')} value={status} onChange={(e) => setParams({ status: e.target.value || null, page: null })}>
+        <Select
+          aria-label={t('colStatus')}
+          value={status}
+          onChange={(e) => setParams({ status: e.target.value || null, page: null })}
+        >
           <option value="">{tc('all')}</option>
           {statuses.map((value) => (
             <option key={value} value={value}>
@@ -98,7 +112,11 @@ export function OrdersTable() {
       </div>
 
       {query.loading ? (
-        <div className="panel"><div className="panel__body"><Skeleton lines={6} height={18} /></div></div>
+        <div className="panel">
+          <div className="panel__body">
+            <Skeleton lines={6} height={18} />
+          </div>
+        </div>
       ) : query.error ? (
         <ErrorState onRetry={query.reload} />
       ) : paged.total === 0 ? (
@@ -112,18 +130,32 @@ export function OrdersTable() {
       ) : (
         <>
           <TableWrap>
-            <DataTable caption={t('title')} head={<><Th>{t('colNumber')}</Th> <Th>{t('colCustomer')}</Th> <Th>{t('colStatus')}</Th> <Th numeric>{t('colItems')}</Th> <Th numeric>{t('colTotal')}</Th> <Th>{t('colCreated')}</Th></>}>{paged.rows.map((order) => (
+            <DataTable
+              caption={t('title')}
+              head={
+                <>
+                  <Th>{t('colNumber')}</Th> <Th>{t('colCustomer')}</Th> <Th>{t('colStatus')}</Th>{' '}
+                  <Th numeric>{t('colItems')}</Th> <Th numeric>{t('colTotal')}</Th>{' '}
+                  <Th>{t('colCreated')}</Th>
+                </>
+              }
+            >
+              {paged.rows.map((order) => (
                 <tr key={order.id}>
                   <Td>
                     <Link href={`/orders/${order.id}`} className="row-link">
-                      <span className="cell-main num" translate="no">{order.number}</span>
+                      <span className="cell-main num" translate="no">
+                        {order.number}
+                      </span>
                     </Link>
                   </Td>
                   <Td ellipsis>
                     <span dir="auto">{order.customerName}</span>
                   </Td>
                   <Td>
-                    <Badge tone={orderStatusTone[order.status]}>{t(orderStatusKey[order.status])}</Badge>
+                    <Badge tone={orderStatusTone[order.status]}>
+                      {t(orderStatusKey[order.status])}
+                    </Badge>
                   </Td>
                   <Td numeric>{order.items.length}</Td>
                   <Td numeric>{formatMoney(order.total, order.currency, locale)}</Td>
@@ -134,7 +166,12 @@ export function OrdersTable() {
               ))}
             </DataTable>
           </TableWrap>
-          <Pagination page={page} pageSize={PAGE_SIZE} total={paged.total} onPageChange={(next) => setParams({ page: next > 1 ? String(next) : null })} />
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={paged.total}
+            onPageChange={(next) => setParams({ page: next > 1 ? String(next) : null })}
+          />
         </>
       )}
     </>

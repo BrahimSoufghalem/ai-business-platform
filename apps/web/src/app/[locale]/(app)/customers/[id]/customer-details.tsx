@@ -40,13 +40,19 @@ export function CustomerDetails() {
   const [note, setNote] = useState('');
   const [notePending, setNotePending] = useState(false);
 
-  const query = useAsyncData<CustomerView>((signal) => api.get(tenant(`/customers/${params.id}`), { signal }), [api, tenant, params.id]);
+  const query = useAsyncData<CustomerView>(
+    (signal) => api.get(tenant(`/customers/${params.id}`), { signal }),
+    [api, tenant, params.id],
+  );
   const customer = query.data;
 
   async function toggleArchive() {
     if (!customer) return;
     const nextStatus = customer.status === 'archived' ? 'active' : 'archived';
-    await api.put(tenant(`/customers/${customer.id}`), { expectedVersion: customer.version, status: nextStatus });
+    await api.put(tenant(`/customers/${customer.id}`), {
+      expectedVersion: customer.version,
+      status: nextStatus,
+    });
     toast(nextStatus === 'archived' ? t('archived') : t('activated'), 'success');
     query.reload();
   }
@@ -80,9 +86,17 @@ export function CustomerDetails() {
     <>
       <PageHeader
         title={<span dir="auto">{customer.name}</span>}
-        breadcrumb={<Breadcrumbs items={[{ label: t('title'), href: '/customers' }, { label: customer.name }]} />}
+        breadcrumb={
+          <Breadcrumbs
+            items={[{ label: t('title'), href: '/customers' }, { label: customer.name }]}
+          />
+        }
         actions={
-          <Button variant="secondary" onClick={() => setConfirmArchive(true)} icon={<Icon name="trash" size={16} />}>
+          <Button
+            variant="secondary"
+            onClick={() => setConfirmArchive(true)}
+            icon={<Icon name="trash" size={16} />}
+          >
             {customer.status === 'archived' ? t('activateCustomer') : tc('archive')}
           </Button>
         }
@@ -104,7 +118,9 @@ export function CustomerDetails() {
                     <span translate="no">{contact.type}</span>
                     {contact.isPrimary ? ' ★' : ''}
                   </dt>
-                  <dd dir="ltr" style={{ textAlign: 'start' }}>{contact.maskedValue}</dd>
+                  <dd dir="ltr" style={{ textAlign: 'start' }}>
+                    {contact.maskedValue}
+                  </dd>
                 </div>
               ))}
               <dt>{t('customerSince')}</dt>
@@ -116,7 +132,14 @@ export function CustomerDetails() {
                 <ul className="stack" style={{ gap: 8 }}>
                   {customer.addresses.map((address) => (
                     <li key={address.id} dir="auto" className="meta-text">
-                      {[address.recipientName, address.line1, address.city, address.region, address.postalCode, address.countryCode]
+                      {[
+                        address.recipientName,
+                        address.line1,
+                        address.city,
+                        address.region,
+                        address.postalCode,
+                        address.countryCode,
+                      ]
                         .filter(Boolean)
                         .join('، ')}
                       {address.isDefault ? ` (${t('defaultAddress')})` : ''}
@@ -135,7 +158,10 @@ export function CustomerDetails() {
                 active={tab}
                 items={[
                   { id: 'orders', label: `${t('ordersTab')} (${customer.orders.length})` },
-                  { id: 'conversations', label: `${t('conversationsTab')} (${customer.conversations.length})` },
+                  {
+                    id: 'conversations',
+                    label: `${t('conversationsTab')} (${customer.conversations.length})`,
+                  },
                   { id: 'notes', label: `${t('notesTab')} (${customer.notes.length})` },
                 ]}
               />
@@ -147,14 +173,26 @@ export function CustomerDetails() {
                 ) : (
                   <ul className="stack" style={{ gap: 8 }}>
                     {customer.orders.map((order) => (
-                      <li key={order.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <li
+                        key={order.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          flexWrap: 'wrap',
+                        }}
+                      >
                         <Link href={`/orders/${order.id}`} className="num" translate="no">
                           {order.number}
                         </Link>
                         <Badge tone={orderStatusTone[order.status as OrderStatus] ?? 'neutral'}>
-                          {orderStatusKey[order.status as OrderStatus] ? tOrders(orderStatusKey[order.status as OrderStatus]) : order.status}
+                          {orderStatusKey[order.status as OrderStatus]
+                            ? tOrders(orderStatusKey[order.status as OrderStatus])
+                            : order.status}
                         </Badge>
-                        <span className="num">{formatMoney(order.total, order.currency, locale)}</span>
+                        <span className="num">
+                          {formatMoney(order.total, order.currency, locale)}
+                        </span>
                         <span className="meta-text">{formatDate(order.createdAt, locale)}</span>
                       </li>
                     ))}
@@ -168,13 +206,25 @@ export function CustomerDetails() {
                 ) : (
                   <ul className="stack" style={{ gap: 8 }}>
                     {customer.conversations.map((conversation) => (
-                      <li key={conversation.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <li
+                        key={conversation.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                          flexWrap: 'wrap',
+                        }}
+                      >
                         <Link href={`/inbox?c=${conversation.id}`}>
                           <span dir="auto">{conversation.subject ?? t('viewConversation')}</span>
                         </Link>
-                        <span translate="no" className="meta-text">{conversation.channel}</span>
+                        <span translate="no" className="meta-text">
+                          {conversation.channel}
+                        </span>
                         <span className="meta-text">
-                          {conversation.lastMessageAt ? formatDateTime(conversation.lastMessageAt, locale) : formatDate(conversation.createdAt, locale)}
+                          {conversation.lastMessageAt
+                            ? formatDateTime(conversation.lastMessageAt, locale)
+                            : formatDate(conversation.createdAt, locale)}
                         </span>
                       </li>
                     ))}
@@ -188,7 +238,9 @@ export function CustomerDetails() {
                   <ul className="stack" style={{ gap: 12 }}>
                     {customer.notes.map((noteItem) => (
                       <li key={noteItem.id}>
-                        <p dir="auto" style={{ overflowWrap: 'anywhere' }}>{noteItem.body}</p>
+                        <p dir="auto" style={{ overflowWrap: 'anywhere' }}>
+                          {noteItem.body}
+                        </p>
                         <p className="meta-text">{formatDateTime(noteItem.createdAt, locale)}</p>
                       </li>
                     ))}
@@ -203,7 +255,12 @@ export function CustomerDetails() {
                       aria-label={t('addNote')}
                     />
                     <div>
-                      <Button type="submit" variant="secondary" loading={notePending} disabled={note.trim().length < 2}>
+                      <Button
+                        type="submit"
+                        variant="secondary"
+                        loading={notePending}
+                        disabled={note.trim().length < 2}
+                      >
                         {t('addNote')}
                       </Button>
                     </div>

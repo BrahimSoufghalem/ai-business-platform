@@ -18,7 +18,11 @@ import { PageHeader } from '../../../../components/ui/page-header';
 import { EmptyState } from '../../../../components/ui/empty-state';
 import { ErrorState } from '../../../../components/ui/error-state';
 import { Skeleton } from '../../../../components/ui/skeleton';
-import { MoreActionsDropdown, DropdownItem, DropdownSeparator } from '../../../../components/ui/dropdown';
+import {
+  MoreActionsDropdown,
+  DropdownItem,
+  DropdownSeparator,
+} from '../../../../components/ui/dropdown';
 import { ConfirmDialog } from '../../../../components/ui/confirm-dialog';
 import { Icon } from '../../../../components/icons';
 import { useToast } from '../../../../components/ui/toast';
@@ -154,7 +158,11 @@ export function ProductsTable() {
       </div>
 
       {productsQuery.loading ? (
-        <div className="panel"><div className="panel__body"><Skeleton lines={6} height={18} /></div></div>
+        <div className="panel">
+          <div className="panel__body">
+            <Skeleton lines={6} height={18} />
+          </div>
+        </div>
       ) : productsQuery.error ? (
         <ErrorState body={apiErrorMessage(productsQuery.error)} onRetry={productsQuery.reload} />
       ) : paged.total === 0 ? (
@@ -180,20 +188,36 @@ export function ProductsTable() {
       ) : (
         <>
           <TableWrap>
-            <DataTable caption={t('title')} head={<><Th>{t('colProduct')}</Th> <Th>{t('colSku')}</Th> <Th>{t('colType')}</Th> <Th numeric>{t('colVariants')}</Th> <Th numeric>{t('colPrice')}</Th> <Th>{t('colStatus')}</Th> <Th>{t('colUpdated')}</Th> <Th>
-                <span className="visually-hidden">{tc('actions')}</span>
-              </Th></>}>{paged.rows.map((product) => (
+            <DataTable
+              caption={t('title')}
+              head={
+                <>
+                  <Th>{t('colProduct')}</Th> <Th>{t('colSku')}</Th> <Th>{t('colType')}</Th>{' '}
+                  <Th numeric>{t('colVariants')}</Th> <Th numeric>{t('colPrice')}</Th>{' '}
+                  <Th>{t('colStatus')}</Th> <Th>{t('colUpdated')}</Th>{' '}
+                  <Th>
+                    <span className="visually-hidden">{tc('actions')}</span>
+                  </Th>
+                </>
+              }
+            >
+              {paged.rows.map((product) => (
                 <tr key={product.id}>
                   <Td ellipsis>
                     <Link href={`/products/${product.id}`} className="row-link">
                       <span className="cell-main">{product.name}</span>
                       {product.media.length > 0 ? (
-                        <span className="cell-sub"> {t('mediaCount', { count: product.media.length })}</span>
+                        <span className="cell-sub">
+                          {' '}
+                          {t('mediaCount', { count: product.media.length })}
+                        </span>
                       ) : null}
                     </Link>
                   </Td>
                   <Td>
-                    <span translate="no" className="num">{product.code}</span>
+                    <span translate="no" className="num">
+                      {product.code}
+                    </span>
                   </Td>
                   <Td>
                     <span className="cell-sub">{typeNames.get(product.productTypeId) ?? '—'}</span>
@@ -201,15 +225,24 @@ export function ProductsTable() {
                   <Td numeric>{product.variants.length > 0 ? product.variants.length : '—'}</Td>
                   <Td numeric>{formatMoney(product.basePrice, product.currency, locale)}</Td>
                   <Td>
-                    <Badge tone={statusTone[product.status] ?? 'neutral'}>{t(`status${product.status === 'active' ? 'Active' : product.status === 'draft' ? 'Draft' : 'Archived'}`)}</Badge>
+                    <Badge tone={statusTone[product.status] ?? 'neutral'}>
+                      {t(
+                        `status${product.status === 'active' ? 'Active' : product.status === 'draft' ? 'Draft' : 'Archived'}`,
+                      )}
+                    </Badge>
                   </Td>
                   <Td>
-                    <span className="cell-sub">{formatRelativeTime(product.updatedAt, locale)}</span>
+                    <span className="cell-sub">
+                      {formatRelativeTime(product.updatedAt, locale)}
+                    </span>
                   </Td>
                   <Td>
                     {canWrite ? (
                       <MoreActionsDropdown label={tc('actions')}>
-                        <DropdownItem icon="pencil" onClick={() => router.push(`/${locale}/products/${product.id}`)}>
+                        <DropdownItem
+                          icon="pencil"
+                          onClick={() => router.push(`/${locale}/products/${product.id}`)}
+                        >
                           {tc('edit')}
                         </DropdownItem>
                         {product.status !== 'active' ? (
@@ -240,7 +273,9 @@ export function ProductsTable() {
       <ConfirmDialog
         open={pendingPublish !== null}
         onClose={() => setPendingPublish(null)}
-        onConfirm={async () => { if (pendingPublish) await publishProduct(pendingPublish); }}
+        onConfirm={async () => {
+          if (pendingPublish) await publishProduct(pendingPublish);
+        }}
         title={t('publishTitle')}
         body={pendingPublish ? t('publishBody', { name: pendingPublish.name }) : ''}
         confirmLabel={t('publishConfirm')}
@@ -248,7 +283,9 @@ export function ProductsTable() {
       <ConfirmDialog
         open={pendingDelete !== null}
         onClose={() => setPendingDelete(null)}
-        onConfirm={async () => { if (pendingDelete) await deleteProduct(pendingDelete); }}
+        onConfirm={async () => {
+          if (pendingDelete) await deleteProduct(pendingDelete);
+        }}
         title={t('deleteTitle')}
         body={pendingDelete ? t('deleteBody', { name: pendingDelete.name }) : ''}
         confirmLabel={t('deleteConfirm')}
@@ -257,4 +294,3 @@ export function ProductsTable() {
     </>
   );
 }
-

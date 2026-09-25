@@ -5,7 +5,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <main className="auth-layout">
       <div className="auth-locale">
-        <Suspense><LocaleSwitcher /></Suspense>
+        <Suspense>
+          <LocaleSwitcher />
+        </Suspense>
       </div>
       {children}
     </main>

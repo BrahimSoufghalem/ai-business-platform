@@ -13,7 +13,9 @@ export function AuthErrorContent() {
   return (
     <div className="auth-card">
       <h1 className="auth-card__title">{t('authErrorTitle')}</h1>
-      <InlineAlert kind="error">{reason === 'expired' ? t('resetLinkInvalid') : t('authErrorBody')}</InlineAlert>
+      <InlineAlert kind="error">
+        {reason === 'expired' ? t('resetLinkInvalid') : t('authErrorBody')}
+      </InlineAlert>
       <p className="auth-card__footer">
         <Link href="/login">{t('backToLogin')}</Link>
       </p>

@@ -141,7 +141,11 @@ export function InboxStudio() {
         description={t('subtitle')}
         count={conversations?.length}
         actions={
-          <Button variant="secondary" onClick={() => void loadList()} icon={<Icon name="refresh" size={16} />}>
+          <Button
+            variant="secondary"
+            onClick={() => void loadList()}
+            icon={<Icon name="refresh" size={16} />}
+          >
             {t('refresh')}
           </Button>
         }
@@ -166,9 +170,18 @@ export function InboxStudio() {
           }}
           style={{ display: 'contents' }}
         >
-          <SearchInput placeholder={t('searchPlaceholder')} value={searchInput} onChange={(e) => setSearchInput(e.target.value)} aria-label={t('searchPlaceholder')} />
+          <SearchInput
+            placeholder={t('searchPlaceholder')}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label={t('searchPlaceholder')}
+          />
         </form>
-        <Select aria-label={t('statusFilter')} value={status} onChange={(e) => setParams({ status: e.target.value || null })}>
+        <Select
+          aria-label={t('statusFilter')}
+          value={status}
+          onChange={(e) => setParams({ status: e.target.value || null })}
+        >
           <option value="">{tc('all')}</option>
           {Object.keys(statusKey).map((value) => (
             <option key={value} value={value}>
@@ -176,15 +189,27 @@ export function InboxStudio() {
             </option>
           ))}
         </Select>
-        <Select aria-label={t('channelFilter')} value={channel} onChange={(e) => setParams({ channel: e.target.value || null })}>
+        <Select
+          aria-label={t('channelFilter')}
+          value={channel}
+          onChange={(e) => setParams({ channel: e.target.value || null })}
+        >
           <option value="">{tc('all')}</option>
           {Object.keys(channelKey).map((value) => (
             <option key={value} value={value}>
-              {value === 'instagram' ? 'Instagram' : value === 'whatsapp' ? 'WhatsApp' : t(channelKey[value] ?? 'channelInternal')}
+              {value === 'instagram'
+                ? 'Instagram'
+                : value === 'whatsapp'
+                  ? 'WhatsApp'
+                  : t(channelKey[value] ?? 'channelInternal')}
             </option>
           ))}
         </Select>
-        <Select aria-label={t('assignmentFilter')} value={assignment} onChange={(e) => setParams({ assignment: e.target.value || null })}>
+        <Select
+          aria-label={t('assignmentFilter')}
+          value={assignment}
+          onChange={(e) => setParams({ assignment: e.target.value || null })}
+        >
           <option value="">{t('assignAll')}</option>
           <option value="mine">{t('assignMine')}</option>
           <option value="unassigned">{t('assignUnassigned')}</option>
@@ -215,15 +240,21 @@ export function InboxStudio() {
                       <span className="inbox-item__name" dir="auto">
                         {conversation.customer.name}
                       </span>
-                      <span className="inbox-item__time">{formatRelativeTime(conversation.lastMessageAt, locale)}</span>
+                      <span className="inbox-item__time">
+                        {formatRelativeTime(conversation.lastMessageAt, locale)}
+                      </span>
                     </span>
                     <span className="inbox-item__preview" dir="auto">
                       {conversation.lastMessagePreview ?? conversation.subject ?? ''}
                     </span>
                     <span className="inbox-item__meta">
-                      <Badge tone={statusTone[conversation.status] ?? 'neutral'}>{t(statusKey[conversation.status] ?? 'statusBot')}</Badge>
+                      <Badge tone={statusTone[conversation.status] ?? 'neutral'}>
+                        {t(statusKey[conversation.status] ?? 'statusBot')}
+                      </Badge>
                       <span className="cell-sub" translate="no">
-                        {channelKey[conversation.channel] ? t(channelKey[conversation.channel] ?? 'channelInternal') : conversation.channel}
+                        {channelKey[conversation.channel]
+                          ? t(channelKey[conversation.channel] ?? 'channelInternal')
+                          : conversation.channel}
                       </span>
                     </span>
                   </button>
@@ -235,7 +266,10 @@ export function InboxStudio() {
 
         <div>
           {!selectedId ? (
-            <div className="conversation" style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              className="conversation"
+              style={{ alignItems: 'center', justifyContent: 'center' }}
+            >
               <EmptyState icon="inbox" title={t('selectConversation')} />
             </div>
           ) : detailLoading && !selected ? (
@@ -331,7 +365,12 @@ function ConversationView({
       <div className="conversation__header">
         <div className="conversation__title">
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button type="button" className="icon-btn icon-btn--sm mobile-back-btn" onClick={onBack} aria-label={t('backToList')}>
+            <button
+              type="button"
+              className="icon-btn icon-btn--sm mobile-back-btn"
+              onClick={onBack}
+              aria-label={t('backToList')}
+            >
               <Icon name="arrow-back" size={17} />
             </button>
             <h2 className="conversation__name" dir="auto">
@@ -339,14 +378,28 @@ function ConversationView({
             </h2>
           </div>
           <div className="conversation__meta">
-            <Badge tone={statusTone[conversation.status] ?? 'neutral'}>{t(statusKey[conversation.status] ?? 'statusBot')}</Badge>
-            <span translate="no">{channelKey[conversation.channel] ? t(channelKey[conversation.channel] ?? 'channelInternal') : conversation.channel}</span>
-            {conversation.customer.contactHint ? <span dir="ltr">{conversation.customer.contactHint}</span> : null}
+            <Badge tone={statusTone[conversation.status] ?? 'neutral'}>
+              {t(statusKey[conversation.status] ?? 'statusBot')}
+            </Badge>
+            <span translate="no">
+              {channelKey[conversation.channel]
+                ? t(channelKey[conversation.channel] ?? 'channelInternal')
+                : conversation.channel}
+            </span>
+            {conversation.customer.contactHint ? (
+              <span dir="ltr">{conversation.customer.contactHint}</span>
+            ) : null}
           </div>
         </div>
         <div className="conversation__actions">
           {conversation.status === 'needs_human' && !conversation.assignedToMe ? (
-            <Button size="sm" onClick={() => void runAction('/claim', { expectedVersion: conversation.version }, t('claimed'))} loading={pending}>
+            <Button
+              size="sm"
+              onClick={() =>
+                void runAction('/claim', { expectedVersion: conversation.version }, t('claimed'))
+              }
+              loading={pending}
+            >
               {t('claim')}
             </Button>
           ) : null}
@@ -354,7 +407,13 @@ function ConversationView({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => void runAction('/release', { expectedVersion: conversation.version, reason: 'released by staff' }, t('released'))}
+              onClick={() =>
+                void runAction(
+                  '/release',
+                  { expectedVersion: conversation.version, reason: 'released by staff' },
+                  t('released'),
+                )
+              }
               loading={pending}
             >
               {t('release')}
@@ -364,7 +423,13 @@ function ConversationView({
             <Button
               size="sm"
               variant="secondary"
-              onClick={() => void runAction('/status', { expectedVersion: conversation.version, targetStatus: 'bot' }, t('reopenBot'))}
+              onClick={() =>
+                void runAction(
+                  '/status',
+                  { expectedVersion: conversation.version, targetStatus: 'bot' },
+                  t('reopenBot'),
+                )
+              }
               loading={pending}
             >
               {t('reopenBot')}
@@ -373,7 +438,13 @@ function ConversationView({
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => void runAction('/status', { expectedVersion: conversation.version, targetStatus: 'closed' }, t('closed'))}
+              onClick={() =>
+                void runAction(
+                  '/status',
+                  { expectedVersion: conversation.version, targetStatus: 'closed' },
+                  t('closed'),
+                )
+              }
               loading={pending}
             >
               {t('closeConversation')}
@@ -389,7 +460,10 @@ function ConversationView({
             {activeHandoff.status === 'pending' ? (
               <>
                 {' '}
-                — {t('handoffWaiting', { duration: formatDurationSeconds(activeHandoff.currentWaitSeconds, locale) })}
+                —{' '}
+                {t('handoffWaiting', {
+                  duration: formatDurationSeconds(activeHandoff.currentWaitSeconds, locale),
+                })}
               </>
             ) : null}
           </InlineAlert>
@@ -402,14 +476,23 @@ function ConversationView({
         </div>
       ) : null}
 
-      <div className="conversation__messages" role="log" aria-label={t('title')} aria-live="polite" tabIndex={0}>
+      <div
+        className="conversation__messages"
+        role="log"
+        aria-label={t('title')}
+        aria-live="polite"
+        tabIndex={0}
+      >
         {conversation.messages.length === 0 ? (
           <p className="meta-text" style={{ textAlign: 'center' }}>
             {t('noMessages')}
           </p>
         ) : (
           conversation.messages.map((message) => (
-            <div key={message.id} className={`message message--${message.direction === 'internal' ? 'internal' : message.direction}`}>
+            <div
+              key={message.id}
+              className={`message message--${message.direction === 'internal' ? 'internal' : message.direction}`}
+            >
               {message.direction === 'internal' ? (
                 <Badge tone="warning">{t('internalNoteTag')}</Badge>
               ) : null}
@@ -425,7 +508,15 @@ function ConversationView({
       </div>
 
       {(conversation.orderId || conversation.productId) && (
-        <div style={{ padding: '8px 16px', borderTop: '1px solid var(--line)', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <div
+          style={{
+            padding: '8px 16px',
+            borderTop: '1px solid var(--line)',
+            display: 'flex',
+            gap: 16,
+            flexWrap: 'wrap',
+          }}
+        >
           {conversation.orderId ? (
             <Link href={`/orders/${conversation.orderId}`} className="meta-text">
               {t('linkedOrder')}
@@ -441,10 +532,12 @@ function ConversationView({
 
       {canReply ? (
         <form className="conversation__composer" onSubmit={sendMessage}>
-          {sendError ? (
-            <InlineAlert kind="error">{sendError}</InlineAlert>
-          ) : null}
-          <Checkbox label={t('asInternalNote')} checked={internalNote} onChange={(e) => setInternalNote(e.target.checked)} />
+          {sendError ? <InlineAlert kind="error">{sendError}</InlineAlert> : null}
+          <Checkbox
+            label={t('asInternalNote')}
+            checked={internalNote}
+            onChange={(e) => setInternalNote(e.target.checked)}
+          />
           <div className="conversation__composer-row">
             <Textarea
               value={reply}
@@ -454,7 +547,12 @@ function ConversationView({
               rows={2}
               maxLength={20000}
             />
-            <Button type="submit" loading={pending} disabled={reply.trim().length === 0} icon={<Icon name="send" size={16} />}>
+            <Button
+              type="submit"
+              loading={pending}
+              disabled={reply.trim().length === 0}
+              icon={<Icon name="send" size={16} />}
+            >
               {internalNote ? t('addInternalNote') : t('sendReply')}
             </Button>
           </div>

@@ -5,6 +5,7 @@
 ## 1) ملخص التدقيق (قبل التعديل)
 
 ### البنية الحالية
+
 - `apps/web`: Next.js 15 (App Router) + React 19، بلا نظام تصميم، بلا i18n، بلا مصادقة.
 - 5 مسارات فقط: `/` (صفحة تسويقية)، `/dashboard`، `/inbox`، `/settings/configuration`، `/settings/product-types`.
 - كل صفحة تشغيلية تحتوي نموذج «اتصال» يدوي: **Store ID (UUID) + Bearer token** يُخزَّن في React state ويُرسَل مع كل طلب.
@@ -14,6 +15,7 @@
 - لا توجد صفحات إطلاقًا لـ: المنتجات، المخزون، الطلبات، العملاء، التكاملات، تسجيل الدخول.
 
 ### الـBackend (لا يتغير)
+
 - NestJS + Fastify على `/api`، مصادقة Bearer JWT عبر OIDC/JWKS (Supabase Auth: `AUTH_ISSUER`/`AUTH_AUDIENCE`/`AUTH_JWKS_URI`).
 - العزل متعدد المتاجر عبر RLS + `withTenantTransaction`؛ العضوية عبر `app_list_current_identity_memberships()`.
 - الـEndpoints المتاحة فعلًا (تُستهلك كما هي دون تغيير عقود):
@@ -30,6 +32,7 @@
   - `.../integrations/instagram` GET/PUT/DELETE (لا يعيد قيمة التوكن إطلاقًا)
 
 ### المشاكل المؤكدة
+
 1. إدخال Store ID وBearer token يدويًا في 4 صفحات.
 2. لا توجد صفحات تسجيل دخول/إنشاء حساب حقيقية.
 3. خلط العربية والإنجليزية داخل الصفحة نفسها.
@@ -41,16 +44,17 @@
 
 ## 2) خطة التنفيذ (مراحل رأسية قابلة للبناء)
 
-| المرحلة | النطاق | معيار القبول |
-|---|---|---|
-| 1. Foundation | design tokens، خطوط next/font (Inter + IBM Plex Sans Arabic)، next-intl (ar/fr/en + RTL)، App shell، مكوّنات UI | build أخضر وتبديل لغة/اتجاه يعمل |
-| 2. Auth | @supabase/ssr + PKCE، login/signup/forgot/reset/callback، حماية المسارات، اختيار المتجر، API client تلقائي، إزالة Bearer forms | لا Bearer token في الواجهة؛ الجلسة تصمد بعد refresh |
-| 3. Products | جدول + فلاتر + URL sync + إنشاء/تعديل/تفاصيل + نشر/أرشفة | جدول احترافي مربوط بالبيانات الحقيقية |
-| 4. Operations | Inventory (أرصدة/حركات/حجوزات)، Orders (+timeline/transitions)، Customers (+ملف 360) | صفحات تشغيل مستقلة |
-| 5. Channels | Inbox (قائمة/محادثة/context + claim/release/رد)، AI Agent tabs، Integrations (Instagram) | تدفقات حقيقية فقط |
-| 6. Polish | Dashboard تشغيلية، Settings، a11y، responsive، أداء | lint/typecheck/test/build + screenshots |
+| المرحلة       | النطاق                                                                                                                         | معيار القبول                                        |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| 1. Foundation | design tokens، خطوط next/font (Inter + IBM Plex Sans Arabic)، next-intl (ar/fr/en + RTL)، App shell، مكوّنات UI                | build أخضر وتبديل لغة/اتجاه يعمل                    |
+| 2. Auth       | @supabase/ssr + PKCE، login/signup/forgot/reset/callback، حماية المسارات، اختيار المتجر، API client تلقائي، إزالة Bearer forms | لا Bearer token في الواجهة؛ الجلسة تصمد بعد refresh |
+| 3. Products   | جدول + فلاتر + URL sync + إنشاء/تعديل/تفاصيل + نشر/أرشفة                                                                       | جدول احترافي مربوط بالبيانات الحقيقية               |
+| 4. Operations | Inventory (أرصدة/حركات/حجوزات)، Orders (+timeline/transitions)، Customers (+ملف 360)                                           | صفحات تشغيل مستقلة                                  |
+| 5. Channels   | Inbox (قائمة/محادثة/context + claim/release/رد)، AI Agent tabs، Integrations (Instagram)                                       | تدفقات حقيقية فقط                                   |
+| 6. Polish     | Dashboard تشغيلية، Settings، a11y، responsive، أداء                                                                            | lint/typecheck/test/build + screenshots             |
 
 ## 3) قرارات هندسية
+
 - **i18n**: `next-intl` مع بادئة `/[locale]`؛ `ar` افتراضي؛ `dir` تلقائي (rtl/ltr)؛ قواميس JSON منفصلة لكل لغة؛ لا نصوص hardcoded في المكوّنات.
 - **Auth**: Supabase Auth (email/password، PKCE عبر `@supabase/ssr`). الحماية في middleware + guard في layout على الخادم. المتجر الحالي في cookie `ab_store_id` ويُختار من `GET /tenants`. لا service-role في المتصفح إطلاقًا.
 - **API client**: عميل واحد مكتوب الأنواع في `lib/api` يضيف `Authorization` من جلسة Supabase و`X-Correlation-Id` لكل طلب، ويعالج 401 بتوجيه إلى login مع حفظ `next`.

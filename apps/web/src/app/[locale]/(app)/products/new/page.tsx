@@ -16,7 +16,11 @@ export default async function NewProductPage({ params }: { params: Promise<{ loc
     <>
       <PageHeader
         title={t('newProduct')}
-        breadcrumb={<Breadcrumbs items={[{ label: t('title'), href: '/products' }, { label: t('newProduct') }]} />}
+        breadcrumb={
+          <Breadcrumbs
+            items={[{ label: t('title'), href: '/products' }, { label: t('newProduct') }]}
+          />
+        }
       />
       <ProductForm product={null} />
     </>

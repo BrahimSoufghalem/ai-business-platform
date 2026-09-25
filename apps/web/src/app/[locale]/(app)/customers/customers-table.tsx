@@ -46,7 +46,10 @@ export function CustomersTable() {
     return params.toString();
   }, [q, status]);
 
-  const query = useAsyncData<CustomerSummaryView[]>((signal) => api.get(tenant(`/customers?${queryString}`), { signal }), [api, queryString, tenant]);
+  const query = useAsyncData<CustomerSummaryView[]>(
+    (signal) => api.get(tenant(`/customers?${queryString}`), { signal }),
+    [api, queryString, tenant],
+  );
 
   const paged = useMemo(() => {
     const all = query.data ?? [];
@@ -78,9 +81,18 @@ export function CustomersTable() {
           }}
           style={{ display: 'contents' }}
         >
-          <SearchInput placeholder={t('searchPlaceholder')} value={searchInput} onChange={(e) => setSearchInput(e.target.value)} aria-label={t('searchPlaceholder')} />
+          <SearchInput
+            placeholder={t('searchPlaceholder')}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            aria-label={t('searchPlaceholder')}
+          />
         </form>
-        <Select aria-label={tc('status')} value={status} onChange={(e) => setParams({ status: e.target.value || null, page: null })}>
+        <Select
+          aria-label={tc('status')}
+          value={status}
+          onChange={(e) => setParams({ status: e.target.value || null, page: null })}
+        >
           <option value="">{tc('all')}</option>
           <option value="active">{t('statusActive')}</option>
           <option value="archived">{t('statusArchived')}</option>
@@ -88,7 +100,11 @@ export function CustomersTable() {
       </div>
 
       {query.loading ? (
-        <div className="panel"><div className="panel__body"><Skeleton lines={6} height={18} /></div></div>
+        <div className="panel">
+          <div className="panel__body">
+            <Skeleton lines={6} height={18} />
+          </div>
+        </div>
       ) : query.error ? (
         <ErrorState onRetry={query.reload} />
       ) : paged.total === 0 ? (
@@ -101,7 +117,11 @@ export function CustomersTable() {
               title={t('emptyTitle')}
               body={t('emptyBody')}
               action={
-                <button type="button" className="btn btn--primary" onClick={() => setCreateOpen(true)}>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => setCreateOpen(true)}
+                >
                   <Icon name="plus" size={16} />
                   {t('addCustomer')}
                 </button>
@@ -112,16 +132,30 @@ export function CustomersTable() {
       ) : (
         <>
           <TableWrap>
-            <DataTable caption={t('title')} head={<><Th>{t('colName')}</Th> <Th>{t('colContact')}</Th> <Th numeric>{t('colOrders')}</Th> <Th numeric>{t('colConversations')}</Th> <Th>{t('colStatus')}</Th> <Th>{t('colAdded')}</Th></>}>{paged.rows.map((customer) => (
+            <DataTable
+              caption={t('title')}
+              head={
+                <>
+                  <Th>{t('colName')}</Th> <Th>{t('colContact')}</Th>{' '}
+                  <Th numeric>{t('colOrders')}</Th> <Th numeric>{t('colConversations')}</Th>{' '}
+                  <Th>{t('colStatus')}</Th> <Th>{t('colAdded')}</Th>
+                </>
+              }
+            >
+              {paged.rows.map((customer) => (
                 <tr key={customer.id}>
                   <Td ellipsis>
                     <Link href={`/customers/${customer.id}`} className="row-link">
-                      <span className="cell-main" dir="auto">{customer.name}</span>
+                      <span className="cell-main" dir="auto">
+                        {customer.name}
+                      </span>
                     </Link>
                   </Td>
                   <Td ellipsis>
                     <span className="cell-sub" dir="auto">
-                      {customer.contacts[0] ? `${customer.contacts[0].type}: ${customer.contacts[0].maskedValue}` : '—'}
+                      {customer.contacts[0]
+                        ? `${customer.contacts[0].type}: ${customer.contacts[0].maskedValue}`
+                        : '—'}
                     </span>
                   </Td>
                   <Td numeric>{customer.orderCount}</Td>
@@ -138,11 +172,20 @@ export function CustomersTable() {
               ))}
             </DataTable>
           </TableWrap>
-          <Pagination page={page} pageSize={PAGE_SIZE} total={paged.total} onPageChange={(next) => setParams({ page: next > 1 ? String(next) : null })} />
+          <Pagination
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={paged.total}
+            onPageChange={(next) => setParams({ page: next > 1 ? String(next) : null })}
+          />
         </>
       )}
 
-      <CustomerCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => query.reload()} />
+      <CustomerCreateDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => query.reload()}
+      />
     </>
   );
 }

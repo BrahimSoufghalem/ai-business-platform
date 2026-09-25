@@ -35,9 +35,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="toast-region" role="status" aria-live="polite">
         {items.map((item) => (
-          <div key={item.id} className={`toast${item.kind === 'success' ? ' toast--success' : ''}${item.kind === 'error' ? ' toast--error' : ''}`}>
+          <div
+            key={item.id}
+            className={`toast${item.kind === 'success' ? ' toast--success' : ''}${item.kind === 'error' ? ' toast--error' : ''}`}
+          >
             <Icon
-              name={item.kind === 'success' ? 'check-circle' : item.kind === 'error' ? 'alert-circle' : 'info'}
+              name={
+                item.kind === 'success'
+                  ? 'check-circle'
+                  : item.kind === 'error'
+                    ? 'alert-circle'
+                    : 'info'
+              }
               size={18}
             />
             <span>{item.message}</span>

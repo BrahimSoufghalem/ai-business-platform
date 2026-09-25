@@ -3,12 +3,18 @@ import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 /** Supabase PKCE auth callback: exchanges the code for a session and redirects on. */
-export async function GET(request: NextRequest, { params }: { params: Promise<{ locale: string }> }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ locale: string }> },
+) {
   const { locale } = await params;
   const url = new URL(request.url);
   const code = url.searchParams.get('code');
   const nextParam = url.searchParams.get('next');
-  const next = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : `/${locale}/overview`;
+  const next =
+    nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
+      ? nextParam
+      : `/${locale}/overview`;
 
   if (code) {
     const cookieStore = await cookies();

@@ -28,7 +28,9 @@ export function CustomerCreateDialog({
   const { toast } = useToast();
 
   const [name, setName] = useState('');
-  const [contactType, setContactType] = useState<'phone' | 'email' | 'whatsapp' | 'instagram'>('phone');
+  const [contactType, setContactType] = useState<'phone' | 'email' | 'whatsapp' | 'instagram'>(
+    'phone',
+  );
   const [contactValue, setContactValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -59,11 +61,20 @@ export function CustomerCreateDialog({
       {error ? <InlineAlert kind="error">{error}</InlineAlert> : null}
       <form onSubmit={submit} className="stack mt-4">
         <FormField label={tc('name')} required>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={160} />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            minLength={2}
+            maxLength={160}
+          />
         </FormField>
         <div className="form-grid">
           <FormField label={t('contactInfo')} required>
-            <Select value={contactType} onChange={(e) => setContactType(e.target.value as typeof contactType)}>
+            <Select
+              value={contactType}
+              onChange={(e) => setContactType(e.target.value as typeof contactType)}
+            >
               <option value="phone">{t('contactTypes.phone')}</option>
               <option value="whatsapp">WhatsApp</option>
               <option value="instagram">Instagram</option>

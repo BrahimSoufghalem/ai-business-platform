@@ -16,7 +16,13 @@ import { LocaleSwitcher } from '../../../components/shell/locale-switcher';
 
 const ROLE_TONES: Record<string, string> = { owner: 'owner', manager: 'manager', agent: 'agent' };
 
-export function StorePicker({ memberships, loadFailed }: { memberships: TenantSummary[]; loadFailed: boolean }) {
+export function StorePicker({
+  memberships,
+  loadFailed,
+}: {
+  memberships: TenantSummary[];
+  loadFailed: boolean;
+}) {
   const t = useTranslations('store');
   const tAuth = useTranslations('account');
   const locale = useLocale();
@@ -27,7 +33,9 @@ export function StorePicker({ memberships, loadFailed }: { memberships: TenantSu
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
-  const [storeLocale, setStoreLocale] = useState(locale === 'fr' ? 'fr-DZ' : locale === 'en' ? 'en-US' : 'ar-DZ');
+  const [storeLocale, setStoreLocale] = useState(
+    locale === 'fr' ? 'fr-DZ' : locale === 'en' ? 'en-US' : 'ar-DZ',
+  );
   const [timezone, setTimezone] = useState(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || 'Africa/Algiers';
@@ -48,7 +56,11 @@ export function StorePicker({ memberships, loadFailed }: { memberships: TenantSu
     setPending(true);
     setError(null);
     try {
-      const created = await api.post<TenantSummary>('/tenants', { name, locale: storeLocale, timezone });
+      const created = await api.post<TenantSummary>('/tenants', {
+        name,
+        locale: storeLocale,
+        timezone,
+      });
       document.cookie = `${STORE_COOKIE}=${created.id};path=/;max-age=31536000;samesite=lax`;
       router.push(`/${locale}/overview`);
       router.refresh();
@@ -61,18 +73,31 @@ export function StorePicker({ memberships, loadFailed }: { memberships: TenantSu
   if (loadFailed) {
     return (
       <div className="auth-card">
-        <ErrorState title={t('loadFailedTitle')} body={t('loadFailedBody')} onRetry={() => router.refresh()} />
+        <ErrorState
+          title={t('loadFailedTitle')}
+          body={t('loadFailedBody')}
+          onRetry={() => router.refresh()}
+        />
       </div>
     );
   }
 
   return (
     <div style={{ width: 'min(560px, 100%)' }} className="stack">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          width: '100%',
+        }}
+      >
         <p className="auth-card__brand" translate="no" style={{ margin: 0 }}>
           AI Business Platform
         </p>
-        <Suspense><LocaleSwitcher /></Suspense>
+        <Suspense>
+          <LocaleSwitcher />
+        </Suspense>
       </div>
       <div>
         <h1 className="auth-card__title">{t('chooseTitle')}</h1>
@@ -82,7 +107,12 @@ export function StorePicker({ memberships, loadFailed }: { memberships: TenantSu
       {memberships.length > 0 && (
         <div className="store-list" role="list">
           {memberships.map((membership) => (
-            <button key={membership.id} type="button" className="store-card" onClick={() => choose(membership.id)}>
+            <button
+              key={membership.id}
+              type="button"
+              className="store-card"
+              onClick={() => choose(membership.id)}
+            >
               <span className="store-card__icon">
                 <Icon name="store" size={20} />
               </span>
@@ -90,7 +120,9 @@ export function StorePicker({ memberships, loadFailed }: { memberships: TenantSu
                 <span className="store-card__name" style={{ display: 'block' }}>
                   {membership.name}
                 </span>
-                <span className="store-card__meta">{t(`roles.${ROLE_TONES[membership.role] ?? membership.role}`)}</span>
+                <span className="store-card__meta">
+                  {t(`roles.${ROLE_TONES[membership.role] ?? membership.role}`)}
+                </span>
               </span>
               <Icon name="chevron-forward" size={18} />
             </button>
@@ -126,10 +158,20 @@ export function StorePicker({ memberships, loadFailed }: { memberships: TenantSu
             <h2 className="panel__title">{t('createStore')}</h2>
           </div>
           <div className="panel__body">
-            {error ? <div className="alert alert--error" role="alert">{error}</div> : null}
+            {error ? (
+              <div className="alert alert--error" role="alert">
+                {error}
+              </div>
+            ) : null}
             <form onSubmit={createStore} className="stack mt-4">
               <FormField label={t('storeName')} required>
-                <Input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={120} />
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  minLength={2}
+                  maxLength={120}
+                />
               </FormField>
               <div className="form-grid">
                 <FormField label={t('storeLocale')} required>
@@ -165,7 +207,11 @@ export function StorePicker({ memberships, loadFailed }: { memberships: TenantSu
       ) : null}
 
       <div style={{ textAlign: 'center' }}>
-        <Button variant="ghost" onClick={() => void signOut()} icon={<Icon name="logout" size={16} />}>
+        <Button
+          variant="ghost"
+          onClick={() => void signOut()}
+          icon={<Icon name="logout" size={16} />}
+        >
           {tAuth('signOut')}
         </Button>
       </div>

@@ -102,7 +102,9 @@ function StoreTab() {
             <ul className="stack" style={{ gap: 10 }}>
               {(auditQuery.data ?? []).slice(0, 20).map((event) => (
                 <li key={event.id} style={{ fontSize: 'var(--text-md)' }}>
-                  <span translate="no" className="meta-text">{event.action}</span>
+                  <span translate="no" className="meta-text">
+                    {event.action}
+                  </span>
                   {' · '}
                   <span dir="auto">{event.entityType}</span>
                   {' · '}
@@ -171,7 +173,9 @@ function AccountTab() {
             <dt>{t('accountName')}</dt>
             <dd dir="auto">{displayName}</dd>
             <dt>{t('accountEmail')}</dt>
-            <dd dir="ltr" style={{ textAlign: 'start' }}>{user.email ?? '—'}</dd>
+            <dd dir="ltr" style={{ textAlign: 'start' }}>
+              {user.email ?? '—'}
+            </dd>
           </dl>
         </div>
       </section>

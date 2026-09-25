@@ -1,15 +1,17 @@
 'use client';
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ButtonHTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Icon } from '../icons';
 
-export function Dropdown({ trigger, children, label }: { trigger: ReactNode; children: ReactNode; label: string }) {
+export function Dropdown({
+  trigger,
+  children,
+  label,
+}: {
+  trigger: ReactNode;
+  children: ReactNode;
+  label: string;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -59,13 +61,18 @@ export function DropdownItem({
   danger,
   children,
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: Parameters<typeof Icon>[0]['name']; danger?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  icon?: Parameters<typeof Icon>[0]['name'];
+  danger?: boolean;
+}) {
   const IconComponent = icon ? <Icon name={icon} size={16} /> : null;
   return (
     <button
       type="button"
       role="menuitem"
-      className={['dropdown__item', danger ? 'dropdown__item--danger' : ''].filter(Boolean).join(' ')}
+      className={['dropdown__item', danger ? 'dropdown__item--danger' : '']
+        .filter(Boolean)
+        .join(' ')}
       {...rest}
     >
       {IconComponent}

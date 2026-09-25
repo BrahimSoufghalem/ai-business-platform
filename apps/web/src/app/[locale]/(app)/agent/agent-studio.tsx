@@ -76,7 +76,10 @@ function IdentityTab() {
   const canManage = store.role === 'owner' || store.role === 'manager';
   const { toast } = useToast();
 
-  const query = useAsyncData<AgentSettingsHistoryView>((signal) => api.get(tenant('/agent-settings'), { signal }), [api, tenant]);
+  const query = useAsyncData<AgentSettingsHistoryView>(
+    (signal) => api.get(tenant('/agent-settings'), { signal }),
+    [api, tenant],
+  );
 
   const [language, setLanguage] = useState<AgentLanguage>('ar');
   const [tone, setTone] = useState<AgentTone>('friendly');
@@ -137,21 +140,33 @@ function IdentityTab() {
       <section className="panel">
         <div className="panel__header">
           <h2 className="panel__title">{t('identityTab')}</h2>
-          {draft ? <Badge tone="warning">{tc('draft')}</Badge> : published ? <Badge tone="success">{tc('published')}</Badge> : null}
+          {draft ? (
+            <Badge tone="warning">{tc('draft')}</Badge>
+          ) : published ? (
+            <Badge tone="success">{tc('published')}</Badge>
+          ) : null}
         </div>
         <div className="panel__body">
           {!canManage ? <InlineAlert kind="info">{t('readOnlyRole')}</InlineAlert> : null}
           {error ? <InlineAlert kind="error">{error}</InlineAlert> : null}
           <form onSubmit={saveDraft} className="stack mt-4">
             <FormField label={t('language')} required>
-              <Select value={language} onChange={(e) => setLanguage(e.target.value as AgentLanguage)} disabled={!canManage}>
+              <Select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as AgentLanguage)}
+                disabled={!canManage}
+              >
                 <option value="ar">{t('languageAr')}</option>
                 <option value="fr">{t('languageFr')}</option>
                 <option value="en">English</option>
               </Select>
             </FormField>
             <FormField label={t('tone')} required>
-              <Select value={tone} onChange={(e) => setTone(e.target.value as AgentTone)} disabled={!canManage}>
+              <Select
+                value={tone}
+                onChange={(e) => setTone(e.target.value as AgentTone)}
+                disabled={!canManage}
+              >
                 <option value="professional">{t('toneFormal')}</option>
                 <option value="friendly">{t('toneFriendly')}</option>
                 <option value="concise">{t('toneConcise')}</option>
@@ -159,10 +174,21 @@ function IdentityTab() {
               </Select>
             </FormField>
             <FormField label={t('handoffNotes')} hint={t('handoffNotesHint')}>
-              <Textarea value={handoffNotes} onChange={(e) => setHandoffNotes(e.target.value)} rows={4} maxLength={1000} disabled={!canManage} />
+              <Textarea
+                value={handoffNotes}
+                onChange={(e) => setHandoffNotes(e.target.value)}
+                rows={4}
+                maxLength={1000}
+                disabled={!canManage}
+              />
             </FormField>
             <FormField label={t('changeNote')} hint={t('changeNoteHint')}>
-              <Input value={changeNote} onChange={(e) => setChangeNote(e.target.value)} maxLength={500} disabled={!canManage} />
+              <Input
+                value={changeNote}
+                onChange={(e) => setChangeNote(e.target.value)}
+                maxLength={500}
+                disabled={!canManage}
+              />
             </FormField>
             {canManage ? (
               <div className="form-actions">
@@ -186,13 +212,32 @@ function IdentityTab() {
           {!published ? <InlineAlert kind="info">{t('noPublished')}</InlineAlert> : null}
           <ul className="stack" style={{ gap: 12, marginTop: 12 }}>
             {history.map((version) => (
-              <li key={version.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <li
+                key={version.id}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}
+              >
                 <strong className="num">{t('versionLabel', { version: version.version })}</strong>
-                <Badge tone={version.status === 'published' ? 'success' : version.status === 'draft' ? 'warning' : 'neutral'}>
-                  {version.status === 'published' ? tc('published') : version.status === 'draft' ? tc('draft') : tc('superseded')}
+                <Badge
+                  tone={
+                    version.status === 'published'
+                      ? 'success'
+                      : version.status === 'draft'
+                        ? 'warning'
+                        : 'neutral'
+                  }
+                >
+                  {version.status === 'published'
+                    ? tc('published')
+                    : version.status === 'draft'
+                      ? tc('draft')
+                      : tc('superseded')}
                 </Badge>
                 <span className="meta-text">{formatDateTime(version.createdAt, locale)}</span>
-                {version.changeNote ? <span className="meta-text" dir="auto">· {version.changeNote}</span> : null}
+                {version.changeNote ? (
+                  <span className="meta-text" dir="auto">
+                    · {version.changeNote}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -223,14 +268,19 @@ function KnowledgeTab() {
   const canManage = store.role === 'owner' || store.role === 'manager';
   const { toast } = useToast();
 
-  const query = useAsyncData<KnowledgeEntryView[]>((signal) => api.get(tenant('/knowledge?limit=100'), { signal }), [api, tenant]);
+  const query = useAsyncData<KnowledgeEntryView[]>(
+    (signal) => api.get(tenant('/knowledge?limit=100'), { signal }),
+    [api, tenant],
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [publishTarget, setPublishTarget] = useState<KnowledgeEntryView | null>(null);
 
   async function publish(entry: KnowledgeEntryView) {
     const draft = entry.draft;
     if (!draft) return;
-    await api.post(tenant(`/knowledge/${entry.id}/versions/${draft.id}/publish`), { expectedEntryVersion: entry.version });
+    await api.post(tenant(`/knowledge/${entry.id}/versions/${draft.id}/publish`), {
+      expectedEntryVersion: entry.version,
+    });
     toast(t('entryPublished'), 'success');
     query.reload();
   }
@@ -249,7 +299,11 @@ function KnowledgeTab() {
       </div>
 
       {query.loading ? (
-        <div className="panel"><div className="panel__body"><Skeleton lines={5} height={18} /></div></div>
+        <div className="panel">
+          <div className="panel__body">
+            <Skeleton lines={5} height={18} />
+          </div>
+        </div>
       ) : query.error ? (
         <ErrorState onRetry={query.reload} />
       ) : (query.data ?? []).length === 0 ? (
@@ -266,12 +320,19 @@ function KnowledgeTab() {
                     {(entry.draft ?? entry.published)?.title ?? entry.slug}
                   </h3>
                   <p className="meta-text" dir="ltr" style={{ textAlign: 'start' }}>
-                    {entry.slug} · {t(`kind${entry.kind === 'faq' ? 'Faq' : entry.kind === 'article' ? 'Article' : 'Policy'}`)}
+                    {entry.slug} ·{' '}
+                    {t(
+                      `kind${entry.kind === 'faq' ? 'Faq' : entry.kind === 'article' ? 'Article' : 'Policy'}`,
+                    )}
                   </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {entry.draft ? <Badge tone="warning">{tc('draft')}</Badge> : null}
-                  {entry.published ? <Badge tone="success">{t('versionLabel', { version: entry.published.version })}</Badge> : null}
+                  {entry.published ? (
+                    <Badge tone="success">
+                      {t('versionLabel', { version: entry.published.version })}
+                    </Badge>
+                  ) : null}
                   {canManage && entry.draft ? (
                     <Button size="sm" variant="secondary" onClick={() => setPublishTarget(entry)}>
                       {tc('publish')}
@@ -290,11 +351,17 @@ function KnowledgeTab() {
         </div>
       )}
 
-      <KnowledgeCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} onDone={() => query.reload()} />
+      <KnowledgeCreateDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onDone={() => query.reload()}
+      />
       <ConfirmDialog
         open={publishTarget !== null}
         onClose={() => setPublishTarget(null)}
-        onConfirm={async () => { if (publishTarget) await publish(publishTarget); }}
+        onConfirm={async () => {
+          if (publishTarget) await publish(publishTarget);
+        }}
         title={t('entryPublished')}
         body={t('publishBody')}
         confirmLabel={tc('publish')}
@@ -303,7 +370,15 @@ function KnowledgeTab() {
   );
 }
 
-function KnowledgeCreateDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+function KnowledgeCreateDialog({
+  open,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const t = useTranslations('agent');
   const tc = useTranslations('common');
   const api = useApi();
@@ -350,7 +425,15 @@ function KnowledgeCreateDialog({ open, onClose, onDone }: { open: boolean; onClo
       <form onSubmit={submit} className="stack mt-4">
         <div className="form-grid">
           <FormField label={t('entrySlug')} required hint={t('slugHint')}>
-            <Input value={slug} onChange={(e) => setSlug(e.target.value)} required minLength={2} maxLength={100} dir="ltr" style={{ textAlign: 'start' }} />
+            <Input
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              required
+              minLength={2}
+              maxLength={100}
+              dir="ltr"
+              style={{ textAlign: 'start' }}
+            />
           </FormField>
           <FormField label={t('entryKind')} required>
             <Select value={kind} onChange={(e) => setKind(e.target.value as KnowledgeKind)}>
@@ -361,13 +444,24 @@ function KnowledgeCreateDialog({ open, onClose, onDone }: { open: boolean; onClo
           </FormField>
         </div>
         <FormField label={t('entryTitle')} required>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={200} />
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            maxLength={200}
+          />
         </FormField>
         <FormField label={t('entryQuestion')}>
           <Input value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={500} />
         </FormField>
         <FormField label={t('entryContent')} required>
-          <Textarea value={content} onChange={(e) => setContent(e.target.value)} required rows={6} maxLength={20000} />
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            required
+            rows={6}
+            maxLength={20000}
+          />
         </FormField>
         <div className="form-actions">
           <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
@@ -394,27 +488,33 @@ function RulesTab() {
   const { toast } = useToast();
   const locale = useLocale();
 
-  const query = useAsyncData<BusinessRuleSetView[]>((signal) => api.get(tenant('/rule-sets?limit=100'), { signal }), [api, tenant]);
+  const query = useAsyncData<BusinessRuleSetView[]>(
+    (signal) => api.get(tenant('/rule-sets?limit=100'), { signal }),
+    [api, tenant],
+  );
   const [createOpen, setCreateOpen] = useState(false);
   const [publishTarget, setPublishTarget] = useState<BusinessRuleSetView | null>(null);
 
   async function publish(ruleSet: BusinessRuleSetView) {
     if (!ruleSet.draft) return;
-    await api.post(tenant(`/rule-sets/${ruleSet.id}/versions/${ruleSet.draft.id}/publish`), { expectedSetVersion: ruleSet.version });
+    await api.post(tenant(`/rule-sets/${ruleSet.id}/versions/${ruleSet.draft.id}/publish`), {
+      expectedSetVersion: ruleSet.version,
+    });
     toast(t('rulePublished'), 'success');
     query.reload();
   }
 
   const policySummary = useMemo(
-    () => (ruleSet: BusinessRuleSetView): string => {
-      const policy = (ruleSet.draft ?? ruleSet.published)?.policy;
-      if (!policy) return '—';
-      const min =
-        policy.minimumPrice.type === 'fixed'
-          ? `${policy.minimumPrice.amount} ${policy.currency}`
-          : `${policy.minimumPrice.percentage}%`;
-      return `${min} · ${policy.maxDiscountPercent}%`;
-    },
+    () =>
+      (ruleSet: BusinessRuleSetView): string => {
+        const policy = (ruleSet.draft ?? ruleSet.published)?.policy;
+        if (!policy) return '—';
+        const min =
+          policy.minimumPrice.type === 'fixed'
+            ? `${policy.minimumPrice.amount} ${policy.currency}`
+            : `${policy.minimumPrice.percentage}%`;
+        return `${min} · ${policy.maxDiscountPercent}%`;
+      },
     [],
   );
 
@@ -432,7 +532,11 @@ function RulesTab() {
       </div>
 
       {query.loading ? (
-        <div className="panel"><div className="panel__body"><Skeleton lines={4} height={18} /></div></div>
+        <div className="panel">
+          <div className="panel__body">
+            <Skeleton lines={4} height={18} />
+          </div>
+        </div>
       ) : query.error ? (
         <ErrorState onRetry={query.reload} />
       ) : (query.data ?? []).length === 0 ? (
@@ -445,12 +549,20 @@ function RulesTab() {
             <section key={ruleSet.id} className="panel">
               <div className="panel__header">
                 <div>
-                  <h3 className="panel__title" dir="auto">{ruleSet.name}</h3>
-                  <p className="meta-text" dir="ltr" style={{ textAlign: 'start' }}>{ruleSet.key}</p>
+                  <h3 className="panel__title" dir="auto">
+                    {ruleSet.name}
+                  </h3>
+                  <p className="meta-text" dir="ltr" style={{ textAlign: 'start' }}>
+                    {ruleSet.key}
+                  </p>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {ruleSet.draft ? <Badge tone="warning">{tc('draft')}</Badge> : null}
-                  {ruleSet.published ? <Badge tone="success">{t('versionLabel', { version: ruleSet.published.version })}</Badge> : null}
+                  {ruleSet.published ? (
+                    <Badge tone="success">
+                      {t('versionLabel', { version: ruleSet.published.version })}
+                    </Badge>
+                  ) : null}
                   {canManage && ruleSet.draft ? (
                     <Button size="sm" variant="secondary" onClick={() => setPublishTarget(ruleSet)}>
                       {tc('publish')}
@@ -461,24 +573,36 @@ function RulesTab() {
               <div className="panel__body">
                 <dl className="detail-list">
                   <dt>{t('negotiable')}</dt>
-                  <dd>{(ruleSet.draft ?? ruleSet.published)?.policy.negotiable ? tc('yes') : tc('no')}</dd>
+                  <dd>
+                    {(ruleSet.draft ?? ruleSet.published)?.policy.negotiable ? tc('yes') : tc('no')}
+                  </dd>
                   <dt>{t('minPriceType')}</dt>
                   <dd className="num">{policySummary(ruleSet)}</dd>
                   <dt>{tc('updatedAt')}</dt>
                   <dd>{formatDateTime(ruleSet.updatedAt, locale)}</dd>
                 </dl>
-                {ruleSet.description ? <p className="meta-text mt-4" dir="auto">{ruleSet.description}</p> : null}
+                {ruleSet.description ? (
+                  <p className="meta-text mt-4" dir="auto">
+                    {ruleSet.description}
+                  </p>
+                ) : null}
               </div>
             </section>
           ))}
         </div>
       )}
 
-      <RuleSetCreateDialog open={createOpen} onClose={() => setCreateOpen(false)} onDone={() => query.reload()} />
+      <RuleSetCreateDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onDone={() => query.reload()}
+      />
       <ConfirmDialog
         open={publishTarget !== null}
         onClose={() => setPublishTarget(null)}
-        onConfirm={async () => { if (publishTarget) await publish(publishTarget); }}
+        onConfirm={async () => {
+          if (publishTarget) await publish(publishTarget);
+        }}
         title={t('publishSettings')}
         body={t('publishBody')}
         confirmLabel={tc('publish')}
@@ -487,7 +611,15 @@ function RulesTab() {
   );
 }
 
-function RuleSetCreateDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+function RuleSetCreateDialog({
+  open,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const t = useTranslations('agent');
   const tc = useTranslations('common');
   const api = useApi();
@@ -530,7 +662,14 @@ function RuleSetCreateDialog({ open, onClose, onDone }: { open: boolean; onClose
       <form onSubmit={submit} className="stack mt-4">
         <div className="form-grid">
           <FormField label={t('ruleKey')} required>
-            <Input value={key} onChange={(e) => setKey(e.target.value)} required dir="ltr" style={{ textAlign: 'start' }} placeholder="default-pricing" />
+            <Input
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              required
+              dir="ltr"
+              style={{ textAlign: 'start' }}
+              placeholder="default-pricing"
+            />
           </FormField>
           <FormField label={t('ruleName')} required>
             <Input value={name} onChange={(e) => setName(e.target.value)} required />
@@ -563,8 +702,17 @@ function RuleSetCreateDialog({ open, onClose, onDone }: { open: boolean; onClose
               type="number"
               min={0}
               max={100}
-              value={policy.minimumPrice.type === 'percentage_of_list' ? policy.minimumPrice.percentage : 90}
-              onChange={(e) => setPolicy({ ...policy, minimumPrice: { type: 'percentage_of_list', percentage: Number(e.target.value) } })}
+              value={
+                policy.minimumPrice.type === 'percentage_of_list'
+                  ? policy.minimumPrice.percentage
+                  : 90
+              }
+              onChange={(e) =>
+                setPolicy({
+                  ...policy,
+                  minimumPrice: { type: 'percentage_of_list', percentage: Number(e.target.value) },
+                })
+              }
               required
               dir="ltr"
               style={{ textAlign: 'end' }}

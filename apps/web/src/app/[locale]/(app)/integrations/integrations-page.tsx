@@ -42,7 +42,9 @@ export function IntegrationsPage() {
   const query = useAsyncData<InstagramConnectionView | null>(
     async (signal) => {
       try {
-        return await api.get<InstagramConnectionView>(tenant('/integrations/instagram'), { signal });
+        return await api.get<InstagramConnectionView>(tenant('/integrations/instagram'), {
+          signal,
+        });
       } catch (error) {
         if (error instanceof ApiError && error.status === 404) return null;
         throw error;
@@ -118,11 +120,19 @@ export function IntegrationsPage() {
               {connection ? (
                 <>
                   {connection.status !== 'active' ? (
-                    <Button variant="secondary" onClick={() => setConnectOpen(true)} icon={<Icon name="refresh" size={16} />}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setConnectOpen(true)}
+                      icon={<Icon name="refresh" size={16} />}
+                    >
                       {t('reconnect')}
                     </Button>
                   ) : null}
-                  <Button variant="danger-secondary" onClick={() => setConfirmDisconnect(true)} icon={<Icon name="close" size={16} />}>
+                  <Button
+                    variant="danger-secondary"
+                    onClick={() => setConfirmDisconnect(true)}
+                    icon={<Icon name="close" size={16} />}
+                  >
                     {t('disconnect')}
                   </Button>
                 </>
@@ -144,7 +154,9 @@ export function IntegrationsPage() {
             </div>
             <div className="integration-row__body">
               <p className="integration-row__name">
-                <span translate="no">{channel === 'whatsapp' ? t('whatsappName') : t('messengerName')}</span>
+                <span translate="no">
+                  {channel === 'whatsapp' ? t('whatsappName') : t('messengerName')}
+                </span>
                 <Badge tone="neutral">{t('comingSoon')}</Badge>
               </p>
               <p className="integration-row__meta">
@@ -155,7 +167,11 @@ export function IntegrationsPage() {
         ))}
       </div>
 
-      <ConnectDialog open={connectOpen} onClose={() => setConnectOpen(false)} onDone={() => query.reload()} />
+      <ConnectDialog
+        open={connectOpen}
+        onClose={() => setConnectOpen(false)}
+        onDone={() => query.reload()}
+      />
       <ConfirmDialog
         open={confirmDisconnect}
         onClose={() => setConfirmDisconnect(false)}
@@ -169,7 +185,15 @@ export function IntegrationsPage() {
   );
 }
 
-function ConnectDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+function ConnectDialog({
+  open,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const t = useTranslations('integrations');
   const tc = useTranslations('common');
   const api = useApi();

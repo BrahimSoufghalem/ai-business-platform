@@ -4,7 +4,15 @@ import { useTranslations } from 'next-intl';
 import { Icon } from '../icons';
 import { Button } from './button';
 
-export function ErrorState({ title, body, onRetry }: { title?: string; body?: string; onRetry?: () => void }) {
+export function ErrorState({
+  title,
+  body,
+  onRetry,
+}: {
+  title?: string;
+  body?: string;
+  onRetry?: () => void;
+}) {
   const t = useTranslations('common');
   return (
     <div className="state-box state-box--error" role="alert">

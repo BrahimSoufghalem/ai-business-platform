@@ -240,7 +240,9 @@
   text-align: start;
   color: var(--text);
   width: 100%;
-  transition: border-color 140ms ease, background-color 140ms ease;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease;
 }
 
 .store-card:hover {

@@ -131,10 +131,18 @@ export function InventoryStudio() {
         actions={
           canWrite ? (
             <>
-              <Button variant="secondary" onClick={() => setLocationOpen(true)} icon={<Icon name="plus" size={16} />}>
+              <Button
+                variant="secondary"
+                onClick={() => setLocationOpen(true)}
+                icon={<Icon name="plus" size={16} />}
+              >
                 {t('addLocation')}
               </Button>
-              <Button variant="secondary" onClick={() => setAdjustOpen(true)} icon={<Icon name="pencil" size={16} />}>
+              <Button
+                variant="secondary"
+                onClick={() => setAdjustOpen(true)}
+                icon={<Icon name="pencil" size={16} />}
+              >
                 {t('adjustStock')}
               </Button>
               <Button onClick={() => setReceiveOpen(true)} icon={<Icon name="plus" size={16} />}>
@@ -178,7 +186,11 @@ export function InventoryStudio() {
           </div>
 
           {balancesQuery.loading ? (
-            <div className="panel"><div className="panel__body"><Skeleton lines={6} height={18} /></div></div>
+            <div className="panel">
+              <div className="panel__body">
+                <Skeleton lines={6} height={18} />
+              </div>
+            </div>
           ) : balancesQuery.error ? (
             <ErrorState onRetry={balancesQuery.reload} />
           ) : (balancesQuery.data ?? []).length === 0 ? (
@@ -189,7 +201,10 @@ export function InventoryStudio() {
                 body={t('emptyBody')}
                 action={
                   canWrite ? (
-                    <Button onClick={() => setReceiveOpen(true)} icon={<Icon name="plus" size={16} />}>
+                    <Button
+                      onClick={() => setReceiveOpen(true)}
+                      icon={<Icon name="plus" size={16} />}
+                    >
                       {t('receiveStock')}
                     </Button>
                   ) : undefined
@@ -198,15 +213,39 @@ export function InventoryStudio() {
             </div>
           ) : (
             <TableWrap>
-              <DataTable caption={t('balances')} head={<><Th>{t('colProduct')}</Th> <Th>{t('colLocation')}</Th> <Th numeric>{t('colOnHand')}</Th> <Th numeric>{t('colReserved')}</Th> <Th numeric>{t('colAvailable')}</Th> <Th numeric>{t('colReorderPoint')}</Th> <Th>{t('colState')}</Th> <Th>{tc('lastUpdated')}</Th></>}>{canWrite ? <Th><span className="visually-hidden">{tc('actions')}</span></Th> : null}
+              <DataTable
+                caption={t('balances')}
+                head={
+                  <>
+                    <Th>{t('colProduct')}</Th> <Th>{t('colLocation')}</Th>{' '}
+                    <Th numeric>{t('colOnHand')}</Th> <Th numeric>{t('colReserved')}</Th>{' '}
+                    <Th numeric>{t('colAvailable')}</Th> <Th numeric>{t('colReorderPoint')}</Th>{' '}
+                    <Th>{t('colState')}</Th> <Th>{tc('lastUpdated')}</Th>
+                  </>
+                }
+              >
+                {canWrite ? (
+                  <Th>
+                    <span className="visually-hidden">{tc('actions')}</span>
+                  </Th>
+                ) : null}
                 {(balancesQuery.data ?? []).map((balance) => (
                   <tr key={`${balance.locationId}-${balance.variantId}`}>
                     <Td ellipsis>
                       <Link href={`/products/${balance.productId}`} className="row-link">
-                        <span className="cell-main" dir="auto">{balance.productName}</span>
-                        {balance.variantName ? <span className="cell-sub" dir="auto"> {balance.variantName}</span> : null}
+                        <span className="cell-main" dir="auto">
+                          {balance.productName}
+                        </span>
+                        {balance.variantName ? (
+                          <span className="cell-sub" dir="auto">
+                            {' '}
+                            {balance.variantName}
+                          </span>
+                        ) : null}
                       </Link>
-                      <span className="cell-sub num" translate="no">{balance.sku}</span>
+                      <span className="cell-sub num" translate="no">
+                        {balance.sku}
+                      </span>
                     </Td>
                     <Td>{balance.locationName}</Td>
                     <Td numeric>{formatNumber(balance.onHand, locale)}</Td>
@@ -229,7 +268,12 @@ export function InventoryStudio() {
                     </Td>
                     {canWrite ? (
                       <Td>
-                        <IconButton icon="pencil" size="sm" label={t('setReorder')} onClick={() => setReorderTarget(balance)} />
+                        <IconButton
+                          icon="pencil"
+                          size="sm"
+                          label={t('setReorder')}
+                          onClick={() => setReorderTarget(balance)}
+                        />
                       </Td>
                     ) : null}
                   </tr>
@@ -242,21 +286,43 @@ export function InventoryStudio() {
 
       {tab === 'movements' ? (
         movementsQuery.loading ? (
-          <div className="panel"><div className="panel__body"><Skeleton lines={6} height={18} /></div></div>
+          <div className="panel">
+            <div className="panel__body">
+              <Skeleton lines={6} height={18} />
+            </div>
+          </div>
         ) : movementsQuery.error ? (
           <ErrorState onRetry={movementsQuery.reload} />
         ) : (movementsQuery.data ?? []).length === 0 ? (
-          <div className="panel"><EmptyState icon="box" title={t('movementsEmpty')} /></div>
+          <div className="panel">
+            <EmptyState icon="box" title={t('movementsEmpty')} />
+          </div>
         ) : (
           <TableWrap>
-            <DataTable caption={t('movements')} head={<><Th>{t('colType')}</Th> <Th numeric>{t('colQty')}</Th> <Th numeric>{t('colOnHand')}</Th> <Th numeric>{t('colReserved')}</Th> <Th>{t('colReason')}</Th> <Th>{t('colDate')}</Th></>}>{(movementsQuery.data ?? []).map((movement) => (
+            <DataTable
+              caption={t('movements')}
+              head={
+                <>
+                  <Th>{t('colType')}</Th> <Th numeric>{t('colQty')}</Th>{' '}
+                  <Th numeric>{t('colOnHand')}</Th> <Th numeric>{t('colReserved')}</Th>{' '}
+                  <Th>{t('colReason')}</Th> <Th>{t('colDate')}</Th>
+                </>
+              }
+            >
+              {(movementsQuery.data ?? []).map((movement) => (
                 <tr key={movement.id}>
                   <Td>
-                    <Badge tone={movementTone[movement.type] ?? 'neutral'}>{t(`movement${movement.type === 'receive' ? 'Receive' : movement.type === 'adjust' ? 'Adjust' : movement.type === 'reserve' ? 'Reserve' : movement.type === 'release' ? 'Release' : movement.type === 'sell' ? 'Sell' : 'Return'}`)}</Badge>
+                    <Badge tone={movementTone[movement.type] ?? 'neutral'}>
+                      {t(
+                        `movement${movement.type === 'receive' ? 'Receive' : movement.type === 'adjust' ? 'Adjust' : movement.type === 'reserve' ? 'Reserve' : movement.type === 'release' ? 'Release' : movement.type === 'sell' ? 'Sell' : 'Return'}`,
+                      )}
+                    </Badge>
                   </Td>
                   <Td numeric>{formatNumber(movement.quantity, locale)}</Td>
                   <Td numeric>
-                    {movement.onHandDelta > 0 ? '+' : ''}{formatNumber(movement.onHandDelta, locale)} → {formatNumber(movement.onHandAfter, locale)}
+                    {movement.onHandDelta > 0 ? '+' : ''}
+                    {formatNumber(movement.onHandDelta, locale)} →{' '}
+                    {formatNumber(movement.onHandAfter, locale)}
                   </Td>
                   <Td numeric>{formatNumber(movement.reservedAfter, locale)}</Td>
                   <Td ellipsis>
@@ -274,26 +340,47 @@ export function InventoryStudio() {
 
       {tab === 'reservations' ? (
         reservationsQuery.loading ? (
-          <div className="panel"><div className="panel__body"><Skeleton lines={6} height={18} /></div></div>
+          <div className="panel">
+            <div className="panel__body">
+              <Skeleton lines={6} height={18} />
+            </div>
+          </div>
         ) : reservationsQuery.error ? (
           <ErrorState onRetry={reservationsQuery.reload} />
         ) : (reservationsQuery.data ?? []).length === 0 ? (
-          <div className="panel"><EmptyState icon="box" title={t('reservationsEmpty')} /></div>
+          <div className="panel">
+            <EmptyState icon="box" title={t('reservationsEmpty')} />
+          </div>
         ) : (
           <TableWrap>
-            <DataTable caption={t('reservations')} head={<><Th>SKU</Th> <Th numeric>{t('colQty')}</Th> <Th>{tc('status')}</Th> <Th>{t('colDate')}</Th></>}>{(reservationsQuery.data ?? []).map((reservation) => (
+            <DataTable
+              caption={t('reservations')}
+              head={
+                <>
+                  <Th>SKU</Th> <Th numeric>{t('colQty')}</Th> <Th>{tc('status')}</Th>{' '}
+                  <Th>{t('colDate')}</Th>
+                </>
+              }
+            >
+              {(reservationsQuery.data ?? []).map((reservation) => (
                 <tr key={reservation.id}>
                   <Td>
-                    <span className="num" translate="no">{reservation.sku}</span>
+                    <span className="num" translate="no">
+                      {reservation.sku}
+                    </span>
                   </Td>
                   <Td numeric>{formatNumber(reservation.quantity, locale)}</Td>
                   <Td>
                     <Badge tone={reservationTone[reservation.status] ?? 'neutral'}>
-                      {t(`reservation${reservation.status === 'active' ? 'Active' : reservation.status === 'released' ? 'Released' : reservation.status === 'committed' ? 'Committed' : 'Expired'}`)}
+                      {t(
+                        `reservation${reservation.status === 'active' ? 'Active' : reservation.status === 'released' ? 'Released' : reservation.status === 'committed' ? 'Committed' : 'Expired'}`,
+                      )}
                     </Badge>
                   </Td>
                   <Td>
-                    <span className="cell-sub">{formatDateTime(reservation.createdAt, locale)}</span>
+                    <span className="cell-sub">
+                      {formatDateTime(reservation.createdAt, locale)}
+                    </span>
                   </Td>
                 </tr>
               ))}
@@ -304,15 +391,29 @@ export function InventoryStudio() {
 
       {tab === 'locations' ? (
         locationsQuery.loading ? (
-          <div className="panel"><div className="panel__body"><Skeleton lines={4} height={18} /></div></div>
+          <div className="panel">
+            <div className="panel__body">
+              <Skeleton lines={4} height={18} />
+            </div>
+          </div>
         ) : locationsQuery.error ? (
           <ErrorState onRetry={locationsQuery.reload} />
         ) : (
           <TableWrap>
-            <DataTable caption={t('locations')} head={<><Th>{t('locationCode')}</Th> <Th>{t('locationName')}</Th> <Th>{tc('status')}</Th></>}>{(locationsQuery.data ?? []).map((location) => (
+            <DataTable
+              caption={t('locations')}
+              head={
+                <>
+                  <Th>{t('locationCode')}</Th> <Th>{t('locationName')}</Th> <Th>{tc('status')}</Th>
+                </>
+              }
+            >
+              {(locationsQuery.data ?? []).map((location) => (
                 <tr key={location.id}>
                   <Td>
-                    <span className="num" translate="no">{location.code}</span>
+                    <span className="num" translate="no">
+                      {location.code}
+                    </span>
                   </Td>
                   <Td>
                     {location.name}
@@ -351,8 +452,16 @@ export function InventoryStudio() {
         locations={locationsQuery.data ?? []}
         variants={variantOptions}
       />
-      <LocationDialog open={locationOpen} onClose={() => setLocationOpen(false)} onDone={() => locationsQuery.reload()} />
-      <ReorderDialog target={reorderTarget} onClose={() => setReorderTarget(null)} onDone={() => balancesQuery.reload()} />
+      <LocationDialog
+        open={locationOpen}
+        onClose={() => setLocationOpen(false)}
+        onDone={() => locationsQuery.reload()}
+      />
+      <ReorderDialog
+        target={reorderTarget}
+        onClose={() => setReorderTarget(null)}
+        onDone={() => balancesQuery.reload()}
+      />
     </>
   );
 }
@@ -422,7 +531,11 @@ function StockMutationDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={kind === 'receive' ? t('receiveTitle') : t('adjustTitle')}>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={kind === 'receive' ? t('receiveTitle') : t('adjustTitle')}
+    >
       {error ? <InlineAlert kind="error">{error}</InlineAlert> : null}
       <form onSubmit={submit} className="stack mt-4">
         <FormField label={t('location')} required>
@@ -445,7 +558,11 @@ function StockMutationDialog({
             ))}
           </Select>
         </FormField>
-        <FormField label={kind === 'receive' ? t('colQty') : t('quantityDeltaLabel')} required hint={t('quantityHint')}>
+        <FormField
+          label={kind === 'receive' ? t('colQty') : t('quantityDeltaLabel')}
+          required
+          hint={t('quantityHint')}
+        >
           <Input
             type="number"
             value={quantity}
@@ -458,7 +575,13 @@ function StockMutationDialog({
           />
         </FormField>
         <FormField label={t('reason')} hint={t('reasonHint')} required={kind === 'adjust'}>
-          <Input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} required={kind === 'adjust'} minLength={kind === 'adjust' ? 3 : undefined} />
+          <Input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={500}
+            required={kind === 'adjust'}
+            minLength={kind === 'adjust' ? 3 : undefined}
+          />
         </FormField>
         <div className="form-actions">
           <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
@@ -473,7 +596,15 @@ function StockMutationDialog({
   );
 }
 
-function LocationDialog({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
+function LocationDialog({
+  open,
+  onClose,
+  onDone,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const t = useTranslations('inventory');
   const tc = useTranslations('common');
   const api = useApi();
@@ -491,7 +622,11 @@ function LocationDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
     setError(null);
     setPending(true);
     try {
-      await api.post(tenant('/inventory/locations'), { code: code.trim(), name: name.trim(), isDefault });
+      await api.post(tenant('/inventory/locations'), {
+        code: code.trim(),
+        name: name.trim(),
+        isDefault,
+      });
       toast(t('locationCreated'), 'success');
       onClose();
       onDone();
@@ -507,12 +642,29 @@ function LocationDialog({ open, onClose, onDone }: { open: boolean; onClose: () 
       {error ? <InlineAlert kind="error">{error}</InlineAlert> : null}
       <form onSubmit={submit} className="stack mt-4">
         <FormField label={t('locationCode')} required>
-          <Input value={code} onChange={(e) => setCode(e.target.value)} required maxLength={32} dir="ltr" style={{ textAlign: 'start' }} />
+          <Input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+            maxLength={32}
+            dir="ltr"
+            style={{ textAlign: 'start' }}
+          />
         </FormField>
         <FormField label={t('locationName')} required>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={120} />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            minLength={2}
+            maxLength={120}
+          />
         </FormField>
-        <Checkbox label={t('defaultLocation')} checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
+        <Checkbox
+          label={t('defaultLocation')}
+          checked={isDefault}
+          onChange={(e) => setIsDefault(e.target.checked)}
+        />
         <div className="form-actions">
           <Button type="button" variant="secondary" onClick={onClose} disabled={pending}>
             {tc('cancel')}
@@ -571,7 +723,11 @@ function ReorderDialog({
 
   return (
     <Dialog open={target !== null} onClose={onClose} title={t('setReorder')}>
-      {target ? <p className="meta-text" dir="auto">{target.productName} — {target.locationName}</p> : null}
+      {target ? (
+        <p className="meta-text" dir="auto">
+          {target.productName} — {target.locationName}
+        </p>
+      ) : null}
       {error ? <InlineAlert kind="error">{error}</InlineAlert> : null}
       <form onSubmit={submit} className="stack mt-4">
         <FormField label={t('colReorderPoint')} required>

@@ -49,7 +49,11 @@ export default function SignupPage() {
         },
       });
       if (error) {
-        setFormError(error.message.toLowerCase().includes('already registered') ? t('emailTaken') : t('genericError'));
+        setFormError(
+          error.message.toLowerCase().includes('already registered')
+            ? t('emailTaken')
+            : t('genericError'),
+        );
         return;
       }
       if (data.session) {
@@ -75,7 +79,13 @@ export default function SignupPage() {
       {formError ? <InlineAlert kind="error">{formError}</InlineAlert> : null}
       <form onSubmit={onSubmit} noValidate>
         <FormField label={t('fullName')} required>
-          <Input autoComplete="name" value={fullName} onChange={(e) => setFullName(e.target.value)} required minLength={2} />
+          <Input
+            autoComplete="name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            required
+            minLength={2}
+          />
         </FormField>
         <FormField label={t('email')} required>
           <Input

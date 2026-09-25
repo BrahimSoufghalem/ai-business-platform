@@ -32,7 +32,10 @@ export function OverviewDashboard() {
   const dashboardQuery = useAsyncData<OperationsDashboard | 'forbidden'>(
     async (signal) => {
       try {
-        return await api.get<OperationsDashboard>(tenant(`/operations/dashboard?range=${encodeURIComponent(range)}`), { signal });
+        return await api.get<OperationsDashboard>(
+          tenant(`/operations/dashboard?range=${encodeURIComponent(range)}`),
+          { signal },
+        );
       } catch (error) {
         if (error instanceof ApiError && error.status === 403) return 'forbidden';
         throw error;
@@ -44,9 +47,12 @@ export function OverviewDashboard() {
   const instagramQuery = useAsyncData<InstagramConnectionView | null>(
     async (signal) => {
       try {
-        return await api.get<InstagramConnectionView>(tenant('/integrations/instagram'), { signal });
+        return await api.get<InstagramConnectionView>(tenant('/integrations/instagram'), {
+          signal,
+        });
       } catch (error) {
-        if (error instanceof ApiError && (error.status === 404 || error.status === 403)) return null;
+        if (error instanceof ApiError && (error.status === 404 || error.status === 403))
+          return null;
         return null;
       }
     },
@@ -69,7 +75,11 @@ export function OverviewDashboard() {
         title={t('title')}
         description={t('subtitle')}
         actions={
-          <Select aria-label={t('range7')} value={range} onChange={(e) => setParams({ range: e.target.value })}>
+          <Select
+            aria-label={t('range7')}
+            value={range}
+            onChange={(e) => setParams({ range: e.target.value })}
+          >
             <option value="today">{t('rangeToday')}</option>
             <option value="7d">{t('range7')}</option>
             <option value="30d">{t('range30')}</option>
@@ -104,7 +114,8 @@ export function OverviewDashboard() {
               <p className="kpi__label">{t('ordersCount')}</p>
               <p className="kpi__value">{formatNumber(dashboard.orders.total, locale)}</p>
               <p className="kpi__hint">
-                {t('delivered')}: {formatNumber(dashboard.orders.delivered, locale)} · {t('cancelled')}: {formatNumber(dashboard.orders.cancelled, locale)}
+                {t('delivered')}: {formatNumber(dashboard.orders.delivered, locale)} ·{' '}
+                {t('cancelled')}: {formatNumber(dashboard.orders.cancelled, locale)}
               </p>
             </div>
             <div className={`kpi${dashboard.orders.active > 0 ? ' kpi--alert' : ''}`}>
@@ -114,7 +125,11 @@ export function OverviewDashboard() {
             <div className={`kpi${dashboard.stock.alertCount > 0 ? ' kpi--critical' : ''}`}>
               <p className="kpi__label">{t('lowStock')}</p>
               <p className="kpi__value">{formatNumber(dashboard.stock.alertCount, locale)}</p>
-              <p className="kpi__hint">{t('outOfStockLabel', { count: formatNumber(dashboard.stock.outOfStockCount, locale) })}</p>
+              <p className="kpi__hint">
+                {t('outOfStockLabel', {
+                  count: formatNumber(dashboard.stock.outOfStockCount, locale),
+                })}
+              </p>
             </div>
             <div className={`kpi${dashboard.handoffs.pending > 0 ? ' kpi--critical' : ''}`}>
               <p className="kpi__label">{t('openConversations')}</p>
@@ -160,13 +175,18 @@ export function OverviewDashboard() {
                 {dashboard.daily.length < 2 ? (
                   <p className="meta-text">{t('activityEmpty')}</p>
                 ) : (
-                  <DailyTrend daily={dashboard.daily} totalLabel={(total) => t('trendTotal', { count: formatNumber(total, locale) })} />
+                  <DailyTrend
+                    daily={dashboard.daily}
+                    totalLabel={(total) => t('trendTotal', { count: formatNumber(total, locale) })}
+                  />
                 )}
                 <dl className="detail-list mt-4">
                   <dt>{t('aiRuns')}</dt>
                   <dd className="num">{formatNumber(dashboard.ai.runCount, locale)}</dd>
                   <dt>{t('handoffRate')}</dt>
-                  <dd className="num">{formatNumber(Math.round(dashboard.ai.handoffRate * 100), locale)}%</dd>
+                  <dd className="num">
+                    {formatNumber(Math.round(dashboard.ai.handoffRate * 100), locale)}%
+                  </dd>
                 </dl>
               </div>
             </section>
@@ -199,15 +219,34 @@ export function OverviewDashboard() {
 
 function AlertRow({ alert }: { alert: OperationsAlert }) {
   const locale = useLocale();
-  const icon = alert.severity === 'critical' ? 'alert-circle' : alert.severity === 'warning' ? 'alert-triangle' : 'info';
+  const icon =
+    alert.severity === 'critical'
+      ? 'alert-circle'
+      : alert.severity === 'warning'
+        ? 'alert-triangle'
+        : 'info';
   return (
     <li className="alert-row">
-      <span style={{ color: alert.severity === 'critical' ? 'var(--danger)' : alert.severity === 'warning' ? 'var(--warning)' : 'var(--info)', marginTop: 2 }}>
+      <span
+        style={{
+          color:
+            alert.severity === 'critical'
+              ? 'var(--danger)'
+              : alert.severity === 'warning'
+                ? 'var(--warning)'
+                : 'var(--info)',
+          marginTop: 2,
+        }}
+      >
         <Icon name={icon} size={18} />
       </span>
       <div className="alert-row__body">
-        <p className="alert-row__title" dir="auto">{alert.title}</p>
-        <p className="alert-row__detail" dir="auto">{alert.detail}</p>
+        <p className="alert-row__title" dir="auto">
+          {alert.title}
+        </p>
+        <p className="alert-row__detail" dir="auto">
+          {alert.detail}
+        </p>
       </div>
       <span className="alert-row__time">{formatRelativeTime(alert.occurredAt, locale)}</span>
     </li>
@@ -215,20 +254,41 @@ function AlertRow({ alert }: { alert: OperationsAlert }) {
 }
 
 /** Compact inline SVG trend built from real daily order counts — no chart library. */
-function DailyTrend({ daily, totalLabel }: { daily: OperationsDashboard['daily']; totalLabel: (total: number) => string }) {
+function DailyTrend({
+  daily,
+  totalLabel,
+}: {
+  daily: OperationsDashboard['daily'];
+  totalLabel: (total: number) => string;
+}) {
   const points = daily.slice(-14);
   const max = Math.max(...points.map((point) => point.orders), 1);
   const width = 560;
   const height = 120;
   const stepX = points.length > 1 ? width / (points.length - 1) : width;
   const pathData = points
-    .map((point, index) => `${index === 0 ? 'M' : 'L'}${(index * stepX).toFixed(1)},${(height - 12 - (point.orders / max) * (height - 32)).toFixed(1)}`)
+    .map(
+      (point, index) =>
+        `${index === 0 ? 'M' : 'L'}${(index * stepX).toFixed(1)},${(height - 12 - (point.orders / max) * (height - 32)).toFixed(1)}`,
+    )
     .join(' ');
 
   return (
     <figure>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="orders trend" style={{ width: '100%', height: 'auto' }}>
-        <path d={pathData} fill="none" stroke="var(--accent)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="orders trend"
+        style={{ width: '100%', height: 'auto' }}
+      >
+        <path
+          d={pathData}
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth={2.5}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
         {points.map((point, index) => (
           <circle
             key={point.date}
@@ -239,7 +299,10 @@ function DailyTrend({ daily, totalLabel }: { daily: OperationsDashboard['daily']
           />
         ))}
       </svg>
-      <figcaption className="meta-text" style={{ display: 'flex', justifyContent: 'space-between' }}>
+      <figcaption
+        className="meta-text"
+        style={{ display: 'flex', justifyContent: 'space-between' }}
+      >
         <span>{totalLabel(points.reduce((sum, p) => sum + p.orders, 0))}</span>
         <span className="num" translate="no">
           {points[0]?.date} — {points[points.length - 1]?.date}
@@ -248,4 +311,3 @@ function DailyTrend({ daily, totalLabel }: { daily: OperationsDashboard['daily']
     </figure>
   );
 }
-

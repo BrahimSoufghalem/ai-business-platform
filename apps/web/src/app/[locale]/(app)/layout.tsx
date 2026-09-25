@@ -52,7 +52,11 @@ export default async function AppLayout({
     const t = await getTranslations({ locale, namespace: 'errors' });
     return (
       <main className="auth-layout">
-        <EmptyState icon="alert-circle" title={t('apiUnavailableTitle')} body={t('apiUnavailableBody')} />
+        <EmptyState
+          icon="alert-circle"
+          title={t('apiUnavailableTitle')}
+          body={t('apiUnavailableBody')}
+        />
       </main>
     );
   }

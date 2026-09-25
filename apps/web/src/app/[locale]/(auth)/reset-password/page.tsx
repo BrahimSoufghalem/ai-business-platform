@@ -74,7 +74,12 @@ export default function ResetPasswordPage() {
       <p className="auth-card__subtitle">{t('resetSubtitle')}</p>
       {formError ? <InlineAlert kind="error">{formError}</InlineAlert> : null}
       <form onSubmit={onSubmit} noValidate>
-        <FormField label={t('newPassword')} required error={errors.password} hint={t('passwordHint')}>
+        <FormField
+          label={t('newPassword')}
+          required
+          error={errors.password}
+          hint={t('passwordHint')}
+        >
           <PasswordInput
             autoComplete="new-password"
             value={password}
@@ -92,7 +97,12 @@ export default function ResetPasswordPage() {
             minLength={8}
           />
         </FormField>
-        <Button type="submit" loading={pending} className="btn--block" disabled={sessionReady !== true}>
+        <Button
+          type="submit"
+          loading={pending}
+          className="btn--block"
+          disabled={sessionReady !== true}
+        >
           {t('setNewPassword')}
         </Button>
       </form>

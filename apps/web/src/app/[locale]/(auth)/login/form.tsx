@@ -6,7 +6,6 @@ import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '../../../../i18n/navigation';
 import { getSupabaseBrowserClient } from '../../../../lib/supabase/client';
 import { Button } from '../../../../components/ui/button';
-import { Checkbox } from '../../../../components/ui/checkbox';
 import { FormField } from '../../../../components/ui/form-field';
 import { Input } from '../../../../components/ui/input';
 import { PasswordInput } from '../../../../components/ui/password-input';
@@ -19,7 +18,6 @@ export function LoginForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -30,17 +28,14 @@ export function LoginForm() {
     setPending(true);
     try {
       const supabase = getSupabaseBrowserClient();
-      if (!remember) {
-        // Session-only persistence: keep the session in memory/storage that clears with the tab.
-        await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
-      }
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
         setError(mapAuthError(signInError.message, t));
         return;
       }
       const next = searchParams.get('next');
-      const target = next && next.startsWith('/') && !next.startsWith('//') ? next : `/${locale}/overview`;
+      const target =
+        next && next.startsWith('/') && !next.startsWith('//') ? next : `/${locale}/overview`;
       router.replace(target);
       router.refresh();
     } catch {
@@ -81,7 +76,6 @@ export function LoginForm() {
           />
         </FormField>
         <div className="auth-links">
-          <Checkbox label={t('rememberMe')} checked={remember} onChange={(e) => setRemember(e.target.checked)} />
           <Link href="/forgot-password">{t('forgotPassword')}</Link>
         </div>
         <Button type="submit" loading={pending} className="btn--block">
@@ -97,7 +91,8 @@ export function LoginForm() {
 
 function mapAuthError(message: string, t: ReturnType<typeof useTranslations<'auth'>>): string {
   const normalized = message.toLowerCase();
-  if (normalized.includes('invalid login') || normalized.includes('invalid credentials')) return t('invalidCredentials');
+  if (normalized.includes('invalid login') || normalized.includes('invalid credentials'))
+    return t('invalidCredentials');
   if (normalized.includes('email not confirmed')) return t('emailNotConfirmed');
   if (normalized.includes('rate limit') || normalized.includes('too many')) return t('rateLimited');
   return t('genericError');

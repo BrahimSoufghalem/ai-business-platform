@@ -48,7 +48,10 @@ export function ProductDetails() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const query = useAsyncData<ProductView>((signal) => api.get(tenant(`/products/${params.id}`), { signal }), [api, tenant, params.id]);
+  const query = useAsyncData<ProductView>(
+    (signal) => api.get(tenant(`/products/${params.id}`), { signal }),
+    [api, tenant, params.id],
+  );
   const product = query.data;
 
   async function publish() {
@@ -73,13 +76,20 @@ export function ProductDetails() {
     setUploadError(null);
     setUploading(true);
     try {
-      const ticket = await api.post<UploadTicketResponse>(tenant(`/products/${product.id}/media/upload-ticket`), {
-        filename: file.name,
-        contentType: file.type,
-        altText: product.name,
-        sortOrder: product.media.length,
+      const ticket = await api.post<UploadTicketResponse>(
+        tenant(`/products/${product.id}/media/upload-ticket`),
+        {
+          filename: file.name,
+          contentType: file.type,
+          altText: product.name,
+          sortOrder: product.media.length,
+        },
+      );
+      const upload = await fetch(ticket.uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: { 'Content-Type': file.type },
       });
-      const upload = await fetch(ticket.uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } });
       if (!upload.ok) throw new Error('upload failed');
       await api.post(tenant(`/products/${product.id}/media/${ticket.mediaId}/complete`), {});
       query.reload();
@@ -110,7 +120,11 @@ export function ProductDetails() {
           title={t('editProduct')}
           breadcrumb={
             <Breadcrumbs
-              items={[{ label: t('title'), href: '/products' }, { label: product.name, href: `/products/${product.id}` }, { label: tc('edit') }]}
+              items={[
+                { label: t('title'), href: '/products' },
+                { label: product.name, href: `/products/${product.id}` },
+                { label: tc('edit') },
+              ]}
             />
           }
         />
@@ -123,19 +137,35 @@ export function ProductDetails() {
     <>
       <PageHeader
         title={product.name}
-        breadcrumb={<Breadcrumbs items={[{ label: t('title'), href: '/products' }, { label: product.name }]} />}
+        breadcrumb={
+          <Breadcrumbs
+            items={[{ label: t('title'), href: '/products' }, { label: product.name }]}
+          />
+        }
         actions={
           canWrite ? (
             <>
               {product.status !== 'active' ? (
-                <Button variant="secondary" onClick={() => setConfirmPublish(true)} icon={<Icon name="check" size={16} />}>
+                <Button
+                  variant="secondary"
+                  onClick={() => setConfirmPublish(true)}
+                  icon={<Icon name="check" size={16} />}
+                >
                   {tc('publish')}
                 </Button>
               ) : null}
-              <Button variant="secondary" onClick={() => setEditing(true)} icon={<Icon name="pencil" size={16} />}>
+              <Button
+                variant="secondary"
+                onClick={() => setEditing(true)}
+                icon={<Icon name="pencil" size={16} />}
+              >
                 {tc('edit')}
               </Button>
-              <Button variant="danger-secondary" onClick={() => setConfirmDelete(true)} icon={<Icon name="trash" size={16} />}>
+              <Button
+                variant="danger-secondary"
+                onClick={() => setConfirmDelete(true)}
+                icon={<Icon name="trash" size={16} />}
+              >
                 {tc('delete')}
               </Button>
             </>
@@ -147,14 +177,28 @@ export function ProductDetails() {
         <section className="panel">
           <div className="panel__header">
             <h2 className="panel__title">{t('basicInfo')}</h2>
-            <Badge tone={product.status === 'active' ? 'success' : product.status === 'draft' ? 'neutral' : 'warning'}>
-              {product.status === 'active' ? t('statusActive') : product.status === 'draft' ? t('statusDraft') : t('statusArchived')}
+            <Badge
+              tone={
+                product.status === 'active'
+                  ? 'success'
+                  : product.status === 'draft'
+                    ? 'neutral'
+                    : 'warning'
+              }
+            >
+              {product.status === 'active'
+                ? t('statusActive')
+                : product.status === 'draft'
+                  ? t('statusDraft')
+                  : t('statusArchived')}
             </Badge>
           </div>
           <div className="panel__body">
             <dl className="detail-list">
               <dt>{t('code')}</dt>
-              <dd className="num" translate="no">{product.code}</dd>
+              <dd className="num" translate="no">
+                {product.code}
+              </dd>
               <dt>{t('basePrice')}</dt>
               <dd className="num">{formatMoney(product.basePrice, product.currency, locale)}</dd>
               <dt>{tc('description')}</dt>
@@ -191,18 +235,35 @@ export function ProductDetails() {
           ) : (
             <div className="panel__body panel__body--flush">
               <TableWrap>
-                <DataTable head={<><Th>{t('sku')}</Th> <Th>{t('variantName')}</Th> <Th>{t('attributesSection')}</Th> <Th numeric>{t('priceOverride')}</Th> <Th>{tc('status')}</Th></>}>{product.variants.map((variant) => (
+                <DataTable
+                  head={
+                    <>
+                      <Th>{t('sku')}</Th> <Th>{t('variantName')}</Th>{' '}
+                      <Th>{t('attributesSection')}</Th> <Th numeric>{t('priceOverride')}</Th>{' '}
+                      <Th>{tc('status')}</Th>
+                    </>
+                  }
+                >
+                  {product.variants.map((variant) => (
                     <tr key={variant.id}>
                       <Td>
-                        <span className="num" translate="no">{variant.sku}</span>
+                        <span className="num" translate="no">
+                          {variant.sku}
+                        </span>
                       </Td>
                       <Td ellipsis>{variant.name ?? '—'}</Td>
                       <Td ellipsis>
                         <span className="cell-sub" dir="auto">
-                          {Object.entries(variant.attributes).map(([k, v]) => `${k}: ${String(v)}`).join(' · ') || '—'}
+                          {Object.entries(variant.attributes)
+                            .map(([k, v]) => `${k}: ${String(v)}`)
+                            .join(' · ') || '—'}
                         </span>
                       </Td>
-                      <Td numeric>{variant.priceOverride ? formatMoney(variant.priceOverride, product.currency, locale) : '—'}</Td>
+                      <Td numeric>
+                        {variant.priceOverride
+                          ? formatMoney(variant.priceOverride, product.currency, locale)
+                          : '—'}
+                      </Td>
                       <Td>
                         <Badge tone={variant.status === 'active' ? 'success' : 'neutral'}>
                           {variant.status === 'active' ? t('statusActive') : t('statusArchived')}
@@ -232,7 +293,13 @@ export function ProductDetails() {
                     e.target.value = '';
                   }}
                 />
-                <Button variant="secondary" size="sm" loading={uploading} onClick={() => fileRef.current?.click()} icon={<Icon name="upload" size={15} />}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  loading={uploading}
+                  onClick={() => fileRef.current?.click()}
+                  icon={<Icon name="upload" size={15} />}
+                >
                   {tc('add')}
                 </Button>
               </>
@@ -250,8 +317,20 @@ export function ProductDetails() {
                     <span dir="auto" style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                       {media.originalFilename}
                     </span>
-                    <Badge tone={media.status === 'ready' ? 'success' : media.status === 'pending' ? 'warning' : 'danger'}>
-                      {media.status === 'ready' ? t('mediaReady') : media.status === 'pending' ? t('mediaPending') : t('mediaFailed')}
+                    <Badge
+                      tone={
+                        media.status === 'ready'
+                          ? 'success'
+                          : media.status === 'pending'
+                            ? 'warning'
+                            : 'danger'
+                      }
+                    >
+                      {media.status === 'ready'
+                        ? t('mediaReady')
+                        : media.status === 'pending'
+                          ? t('mediaPending')
+                          : t('mediaFailed')}
                     </Badge>
                   </li>
                 ))}
