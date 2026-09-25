@@ -11,9 +11,13 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.7.0",
+    "@supabase/supabase-js": "^2.117.2",
     "next": "^15.5.2",
+    "next-intl": "^4.14.7",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@types/react": "^19.1.12",
