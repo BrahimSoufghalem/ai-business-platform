@@ -49,9 +49,7 @@ export default async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { locale, segments } = parsePath(response.headers.get('x-middleware-request-x-next-url')
-    ? new URL(request.url).pathname
-    : request.nextUrl.pathname);
+  const { locale, segments } = parsePath(request.nextUrl.pathname);
   const first = segments[0] ?? '';
   const isPublic = PUBLIC_SEGMENTS.has(first) || segments.length === 0;
   const dir = localeDirection[locale];
