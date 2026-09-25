@@ -1,0 +1,68 @@
+:root {
+  color-scheme: light;
+
+  /* Surfaces & text */
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --surface-3: #e3e8ef;
+  --text: #1c2534;
+  --text-muted: #55617a;
+  --text-faint: #5f6b81;
+  --line: #d9dee6;
+  --line-strong: #c3cad6;
+
+  /* Brand accent — cobalt */
+  --accent: #1d4fd7;
+  --accent-strong: #173fa8;
+  --accent-soft: #e4ecfd;
+  --accent-contrast: #ffffff;
+
+  /* Semantic */
+  --success: #157a3d;
+  --success-soft: #e2f4e8;
+  --warning: #8a5a0a;
+  --warning-soft: #faefda;
+  --danger: #b3261e;
+  --danger-soft: #fbe7e5;
+  --info: #0b5bd3;
+  --info-soft: #e3eefa;
+
+  /* Typography */
+  --font-family-base: var(--font-inter), var(--font-plex-arabic), 'Segoe UI', system-ui, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1rem;
+  --text-h3: 1.125rem;
+  --text-h2: 1.375rem;
+  --text-h1: 1.75rem;
+
+  /* Spacing scale (4px) */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-8: 2rem;
+  --sp-12: 3rem;
+
+  /* Radius */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-full: 999px;
+
+  /* Elevation — borders first; shadows only for floating layers */
+  --shadow-pop: 0 8px 28px rgb(16 24 40 / 16%), 0 2px 6px rgb(16 24 40 / 8%);
+  --shadow-dialog: 0 24px 64px rgb(16 24 40 / 22%);
+
+  /* Shell metrics */
+  --sidebar-width: 248px;
+  --topbar-height: 56px;
+  --content-max: 1440px;
+
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  --control-height: 40px;
+}
