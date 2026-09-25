@@ -18,7 +18,6 @@ import { Select } from '../../../../components/ui/select';
 import { Badge } from '../../../../components/ui/badge';
 import { Skeleton } from '../../../../components/ui/skeleton';
 import { ErrorState } from '../../../../components/ui/error-state';
-import {} from '../../../../components/ui/empty-state';
 import { InlineAlert } from '../../../../components/ui/alert';
 import { Icon } from '../../../../components/icons';
 

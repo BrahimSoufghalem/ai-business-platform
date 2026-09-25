@@ -9,7 +9,6 @@ import { useRouter } from 'next/navigation';
 import { formatMoney, formatRelativeTime } from '../../../../lib/format';
 import type { ProductTypeView, ProductView } from '../../../../lib/api/types';
 import { Link } from '../../../../i18n/navigation';
-import {} from '../../../../components/ui/button';
 import { SearchInput } from '../../../../components/ui/search-input';
 import { Select } from '../../../../components/ui/select';
 import { Badge, type BadgeTone } from '../../../../components/ui/badge';
@@ -23,7 +22,6 @@ import { MoreActionsDropdown, DropdownItem, DropdownSeparator } from '../../../.
 import { ConfirmDialog } from '../../../../components/ui/confirm-dialog';
 import { Icon } from '../../../../components/icons';
 import { useToast } from '../../../../components/ui/toast';
-import {} from '../../../../lib/api/client';
 
 const PAGE_SIZE = 20;
 
