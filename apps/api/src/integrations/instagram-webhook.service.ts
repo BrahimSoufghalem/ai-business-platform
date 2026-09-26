@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { TenantId } from '@ai-business/domain';
@@ -69,12 +70,35 @@ function fingerprint(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value), 'utf8').digest('hex');
 }
 
+function accountDiagnostic(accountId: string): {
+  readonly accountIdHash: string;
+  readonly accountIdSuffix: string;
+} {
+  return {
+    accountIdHash: createHash('sha256').update(accountId, 'utf8').digest('hex').slice(0, 12),
+    accountIdSuffix: accountId.slice(-4),
+  };
+}
+
+function entryShape(value: unknown): {
+  readonly messagingEvents: number;
+  readonly changeEvents: number;
+} {
+  const entry = record(value);
+  return {
+    messagingEvents: Array.isArray(entry?.messaging) ? entry.messaging.length : 0,
+    changeEvents: Array.isArray(entry?.changes) ? entry.changes.length : 0,
+  };
+}
+
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === '23505';
 }
 
 @Injectable()
 export class InstagramWebhookService {
+  private readonly logger = new Logger('InstagramWebhook');
+
   constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
 
   verifySubscription(query: Readonly<Record<string, unknown>>): string {
@@ -95,11 +119,24 @@ export class InstagramWebhookService {
     let acceptedMessages = 0;
     let replayedMessages = 0;
     let queuedJobs = 0;
-    for (const entry of webhookEntries(payload)) {
+    const entries = webhookEntries(payload);
+    for (const entry of entries) {
+      const diagnostic = accountDiagnostic(entry.id);
       const [mapping] = await this.database.client<{ tenantId: TenantId }[]>`
         select app_resolve_instagram_tenant(${entry.id})::text as "tenantId"
       `;
-      if (!mapping?.tenantId) continue;
+      if (!mapping?.tenantId) {
+        this.logger.warn(
+          JSON.stringify({
+            event: 'instagram_webhook_entry_ignored',
+            correlationId,
+            reason: 'no_active_integration',
+            ...diagnostic,
+            ...entryShape(entry.value),
+          }),
+        );
+        continue;
+      }
 
       const adapter = new InstagramLiveAdapter({
         appSecret: appSecret(),
@@ -144,6 +181,17 @@ export class InstagramWebhookService {
           else acceptedMessages += 1;
           if (result.jobEnqueued) queuedJobs += 1;
         }
+        if (normalized.length === 0) {
+          this.logger.warn(
+            JSON.stringify({
+              event: 'instagram_webhook_entry_ignored',
+              correlationId,
+              reason: 'no_supported_messages',
+              ...diagnostic,
+              ...entryShape(entry.value),
+            }),
+          );
+        }
       } catch (error) {
         if (error instanceof InstagramPayloadError) {
           throw new BadRequestException(error.message);
@@ -157,6 +205,16 @@ export class InstagramWebhookService {
       }
     }
 
+    this.logger.log(
+      JSON.stringify({
+        event: 'instagram_webhook_ingestion_result',
+        correlationId,
+        entryCount: entries.length,
+        acceptedMessages,
+        replayedMessages,
+        queuedJobs,
+      }),
+    );
     return { received: true, acceptedMessages, replayedMessages, queuedJobs };
   }
 }
