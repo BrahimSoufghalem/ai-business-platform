@@ -270,7 +270,10 @@ export class ProductService {
             ${input.q} = '' or code ilike ${pattern} or name ilike ${pattern}
             or coalesce(description, '') ilike ${pattern}
           )
-          and (${input.status ?? null}::product_status is null or status = ${input.status ?? null}::product_status)
+          and (
+            (${input.status ?? null}::product_status is null and status <> 'archived')
+            or status = ${input.status ?? null}::product_status
+          )
           and (${input.productTypeId ?? null}::uuid is null or product_type_id = ${input.productTypeId ?? null}::uuid)
         order by updated_at desc, id
         limit ${input.limit}
@@ -418,7 +421,7 @@ export class ProductService {
         );
         const validated = this.validateConfiguration({
           definitions: schema.definitions,
-          lifecycleStatus: current.status,
+          lifecycleStatus: input.publish === true ? 'active' : current.status,
           code: input.code ?? current.code,
           basePrice: input.basePrice ?? current.basePrice,
           customAttributes: input.customAttributes ?? current.customAttributes,
@@ -434,6 +437,10 @@ export class ProductService {
             base_price = ${validated.basePrice}, currency = ${input.currency ?? current.currency},
             custom_attributes = ${transaction.json(asJsonInput(validated.customAttributes))},
             product_type_schema_version = ${schema.schemaVersion},
+            status = ${input.publish === true ? 'active' : current.status},
+            published_at = ${
+              input.publish === true ? (current.publishedAt ?? new Date()) : current.publishedAt
+            },
             version = version + 1, updated_at = now()
           where tenant_id = ${context.tenantId} and id = ${productId}
             and version = ${input.expectedVersion}
@@ -455,7 +462,8 @@ export class ProductService {
             tenant_id, actor_type, actor_id, action, entity_type, entity_id,
             correlation_id, metadata
           ) values (
-            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product.updated',
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject},
+            ${input.publish === true && current.status !== 'active' ? 'product.published' : 'product.updated'},
             'product', ${productId}, ${correlationId},
             ${transaction.json({ previousVersion: current.version, version: product.version })}
           )
@@ -550,6 +558,39 @@ export class ProductService {
           'product', ${productId}, ${correlationId}
         )
       `;
+    });
+  }
+
+  async restore(
+    identity: VerifiedIdentity,
+    correlationId: string,
+    candidateTenantId: string,
+    productId: string,
+  ): Promise<ProductView> {
+    const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
+    return withTenantTransaction(this.database.client, context, async (transaction) => {
+      await authorizeTenantPermission(transaction, context.tenantId, 'catalog:write');
+      const current = await this.loadOne(transaction, context.tenantId, productId);
+      if (!current) throw new NotFoundException('Product not found.');
+      if (current.status !== 'archived') return current;
+
+      await transaction`
+        update products
+        set status = 'draft', published_at = null, version = version + 1, updated_at = now()
+        where tenant_id = ${context.tenantId} and id = ${productId}
+      `;
+      const product = await this.loadOne(transaction, context.tenantId, productId);
+      if (!product) throw new Error('Restored product could not be loaded.');
+      await this.writeRevision(transaction, context.tenantId, identity.subject, product);
+      await transaction`
+        insert into audit_events (
+          tenant_id, actor_type, actor_id, action, entity_type, entity_id, correlation_id
+        ) values (
+          ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject}, 'product.restored',
+          'product', ${productId}, ${correlationId}
+        )
+      `;
+      return product;
     });
   }
 }

@@ -126,6 +126,21 @@ export class ProductController {
     );
   }
 
+  @Post(':productId/restore')
+  restore(
+    @CurrentIdentity() identity: VerifiedIdentity,
+    @CorrelationId() correlationId: string,
+    @Param('tenantId') candidateTenantId: string,
+    @Param('productId') candidateProductId: string,
+  ) {
+    return this.products.restore(
+      identity,
+      correlationId,
+      tenantId(candidateTenantId),
+      productId(candidateProductId),
+    );
+  }
+
   @Delete(':productId')
   @HttpCode(204)
   archive(

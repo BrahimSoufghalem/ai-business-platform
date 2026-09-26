@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { VerifiedIdentity } from '@ai-business/auth';
 import { createProductMediaObjectKey } from '@ai-business/storage';
 import { withTenantTransaction } from '@ai-business/db';
@@ -7,7 +13,9 @@ import { DatabaseService } from '../database/database.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { authorizeTenantPermission } from '../tenancy/tenant-authorization.js';
 import { createCandidateTenantContext } from '../tenancy/trusted-tenant-context.js';
-import type { CreateMediaTicketInput } from './product.schemas.js';
+import type { CreateMediaTicketInput, UploadProductMediaInput } from './product.schemas.js';
+
+const MAX_MEDIA_SIZE_BYTES = 5 * 1024 * 1024;
 
 @Injectable()
 export class ProductMediaService {
@@ -15,6 +23,87 @@ export class ProductMediaService {
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Inject(StorageService) private readonly storage: StorageService,
   ) {}
+
+  async upload(
+    identity: VerifiedIdentity,
+    correlationId: string,
+    candidateTenantId: string,
+    productId: string,
+    input: UploadProductMediaInput,
+  ) {
+    const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
+    const body = Buffer.from(input.dataBase64, 'base64');
+    if (body.byteLength === 0 || body.byteLength > MAX_MEDIA_SIZE_BYTES) {
+      throw new BadRequestException('Product images must be no larger than 5 MB.');
+    }
+
+    const mediaId = randomUUID();
+    const objectKey = createProductMediaObjectKey({
+      tenantId: context.tenantId,
+      productId,
+      mediaId,
+      filename: input.filename,
+    });
+
+    await withTenantTransaction(this.database.client, context, async (transaction) => {
+      await authorizeTenantPermission(transaction, context.tenantId, 'catalog:write');
+      const [product] = await transaction<{ id: string }[]>`
+        select id::text from products
+        where tenant_id = ${context.tenantId} and id = ${productId}
+        limit 1
+      `;
+      if (!product) throw new NotFoundException('Product not found.');
+      await transaction`
+        insert into product_media (
+          id, tenant_id, product_id, object_key, original_filename,
+          content_type, alt_text, sort_order, status
+        ) values (
+          ${mediaId}, ${context.tenantId}, ${productId}, ${objectKey}, ${input.filename},
+          ${input.contentType}, ${input.altText ?? null}, ${input.sortOrder}, 'pending'
+        )
+      `;
+    });
+
+    try {
+      const metadata = await this.storage.client.put({
+        objectKey,
+        contentType: input.contentType,
+        body,
+      });
+      await withTenantTransaction(this.database.client, context, async (transaction) => {
+        await authorizeTenantPermission(transaction, context.tenantId, 'catalog:write');
+        await transaction`
+          update product_media
+          set status = 'ready', size_bytes = ${metadata.sizeBytes}, updated_at = now()
+          where tenant_id = ${context.tenantId} and product_id = ${productId} and id = ${mediaId}
+        `;
+        await transaction`
+          insert into audit_events (
+            tenant_id, actor_type, actor_id, action, entity_type, entity_id,
+            correlation_id, metadata
+          ) values (
+            ${context.tenantId}, ${identity.actorType ?? 'user'}, ${identity.subject},
+            'product_media.completed', 'product_media', ${mediaId}, ${correlationId},
+            ${transaction.json({ productId, sizeBytes: metadata.sizeBytes })}
+          )
+        `;
+      });
+      return { mediaId, status: 'ready' as const, ...metadata };
+    } catch (error) {
+      await withTenantTransaction(this.database.client, context, async (transaction) => {
+        await authorizeTenantPermission(transaction, context.tenantId, 'catalog:write');
+        await transaction`
+          update product_media
+          set status = 'failed', updated_at = now()
+          where tenant_id = ${context.tenantId} and product_id = ${productId} and id = ${mediaId}
+        `;
+      }).catch(() => undefined);
+      if (error instanceof BadRequestException || error instanceof NotFoundException) throw error;
+      throw new ServiceUnavailableException(
+        'Product image could not be stored. Check object storage configuration and try again.',
+      );
+    }
+  }
 
   async createUploadTicket(
     identity: VerifiedIdentity,

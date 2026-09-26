@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { getProductTypeTemplate, validateAttributeDefinitions } from '@ai-business/domain';
-import { createMediaTicketSchema, productSearchSchema } from '../src/products/product.schemas.js';
+import {
+  createMediaTicketSchema,
+  productSearchSchema,
+  updateProductSchema,
+  uploadProductMediaSchema,
+} from '../src/products/product.schemas.js';
 import { validateProductConfiguration } from '../src/products/product-validation.js';
 
 const smartphone = getProductTypeTemplate('smartphone');
@@ -66,6 +71,27 @@ describe('product configuration', () => {
     expect(productSearchSchema.parse({ limit: '25' }).limit).toBe(25);
     expect(() =>
       createMediaTicketSchema.parse({ filename: 'payload.svg', contentType: 'image/svg+xml' }),
+    ).toThrow();
+  });
+
+  it('supports atomic draft publishing and bounded image uploads', () => {
+    expect(updateProductSchema.parse({ expectedVersion: 1, publish: true })).toMatchObject({
+      expectedVersion: 1,
+      publish: true,
+    });
+    expect(
+      uploadProductMediaSchema.parse({
+        filename: 'product.png',
+        contentType: 'image/png',
+        dataBase64: Buffer.from('png').toString('base64'),
+      }),
+    ).toMatchObject({ filename: 'product.png', contentType: 'image/png' });
+    expect(() =>
+      uploadProductMediaSchema.parse({
+        filename: 'product.png',
+        contentType: 'image/png',
+        dataBase64: 'not base64!',
+      }),
     ).toThrow();
   });
 });

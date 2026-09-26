@@ -220,7 +220,13 @@ function ConnectDialog({
       onClose();
       onDone();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('connectFailed'));
+      setError(
+        caught instanceof ApiError
+          ? caught.status === 0
+            ? tc('connectionError')
+            : caught.message
+          : t('connectFailed'),
+      );
     } finally {
       setPending(false);
     }

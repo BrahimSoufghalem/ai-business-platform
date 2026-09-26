@@ -1,13 +1,22 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import type { VerifiedIdentity } from '@ai-business/auth';
 import { withTenantTransaction } from '@ai-business/db';
-import { InstagramCredentialError, InstagramCredentialVault } from '@ai-business/integrations';
+import {
+  InstagramConfigurationError,
+  InstagramCredentialError,
+  InstagramCredentialValidationError,
+  InstagramCredentialVault,
+  validateInstagramCredentials,
+  type InstagramCredentialValidationConfiguration,
+} from '@ai-business/integrations';
 import { DatabaseService } from '../database/database.service.js';
 import { authorizeTenantPermission } from '../tenancy/tenant-authorization.js';
 import { createCandidateTenantContext } from '../tenancy/trusted-tenant-context.js';
@@ -59,9 +68,24 @@ function credentialVault(): InstagramCredentialVault {
   }
 }
 
+export type InstagramCredentialValidator = (
+  configuration: InstagramCredentialValidationConfiguration,
+) => Promise<{ readonly accountId: string; readonly username: string | null }>;
+
+export const INSTAGRAM_CREDENTIAL_VALIDATOR = Symbol('INSTAGRAM_CREDENTIAL_VALIDATOR');
+
 @Injectable()
 export class InstagramConnectionService {
-  constructor(@Inject(DatabaseService) private readonly database: DatabaseService) {}
+  private readonly validateCredentials: InstagramCredentialValidator;
+
+  constructor(
+    @Inject(DatabaseService) private readonly database: DatabaseService,
+    @Optional()
+    @Inject(INSTAGRAM_CREDENTIAL_VALIDATOR)
+    validateCredentials?: InstagramCredentialValidator,
+  ) {
+    this.validateCredentials = validateCredentials ?? validateInstagramCredentials;
+  }
 
   async get(
     identity: VerifiedIdentity,
@@ -93,6 +117,36 @@ export class InstagramConnectionService {
     input: ConnectInstagramAccountInput,
   ): Promise<InstagramConnectionView> {
     const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
+    await withTenantTransaction(this.database.client, context, async (transaction) => {
+      await authorizeTenantPermission(transaction, context.tenantId, 'tenant:manage');
+    });
+    try {
+      await this.validateCredentials({
+        accountId: input.accountId,
+        accessToken: input.accessToken,
+      });
+    } catch (error) {
+      if (error instanceof InstagramConfigurationError) {
+        throw new BadRequestException(error.message);
+      }
+      if (error instanceof InstagramCredentialValidationError) {
+        if (
+          error.reason === 'invalid_credentials' ||
+          error.reason === 'invalid_response' ||
+          [400, 401, 403].includes(error.status)
+        ) {
+          throw new BadRequestException('Instagram account ID or access token is invalid.');
+        }
+        throw new ServiceUnavailableException(
+          error.reason === 'timeout'
+            ? 'Instagram did not respond in time. Try again.'
+            : error.reason === 'provider_unavailable'
+              ? 'Instagram is temporarily unavailable. Try again later.'
+              : 'Could not reach Instagram. Check the server network and try again.',
+        );
+      }
+      throw error;
+    }
     try {
       return await withTenantTransaction(this.database.client, context, async (transaction) => {
         await authorizeTenantPermission(transaction, context.tenantId, 'tenant:manage');
@@ -104,11 +158,11 @@ export class InstagramConnectionService {
           insert into instagram_accounts (
             tenant_id, instagram_account_id, access_token_ciphertext,
             access_token_iv, access_token_auth_tag, encryption_key_version,
-            token_fingerprint, status
+            token_fingerprint, status, last_validated_at
           ) values (
             ${context.tenantId}, ${input.accountId}, ${encrypted.ciphertext},
             ${encrypted.iv}, ${encrypted.authTag}, ${encrypted.keyVersion},
-            ${encrypted.fingerprint}, 'active'
+            ${encrypted.fingerprint}, 'active', now()
           )
           on conflict (tenant_id) do update set
             instagram_account_id = excluded.instagram_account_id,
@@ -119,7 +173,7 @@ export class InstagramConnectionService {
             token_fingerprint = excluded.token_fingerprint,
             status = 'active',
             connected_at = now(),
-            last_validated_at = null,
+            last_validated_at = now(),
             updated_at = now()
           returning
             id::text, instagram_account_id as "accountId",

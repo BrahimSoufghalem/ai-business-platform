@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Button } from './button';
 import { Dialog } from './dialog';
 import { InlineAlert } from './alert';
+import { ApiError } from '../../lib/api/client';
 
 export interface ConfirmDialogProps {
   open: boolean;
@@ -39,8 +40,14 @@ export function ConfirmDialog({
     try {
       await onConfirm();
       onClose();
-    } catch {
-      setError(t('errorBody'));
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError
+          ? caught.status === 0
+            ? t('connectionError')
+            : caught.message
+          : t('errorBody'),
+      );
     } finally {
       setPending(false);
     }

@@ -455,6 +455,7 @@ export interface OperationsAlert {
   severity: AlertSeverity;
   title: string;
   detail: string;
+  data?: Record<string, string | number | null>;
   entityId: string;
   correlationId: string | null;
   occurredAt: string;

@@ -23,12 +23,29 @@ export interface ApiClientConfig {
 }
 
 function extractMessage(payload: unknown, fallback: string): string {
-  if (payload && typeof payload === 'object' && 'message' in payload) {
-    const message = (payload as { message?: unknown }).message;
-    if (Array.isArray(message)) return message.filter((m) => typeof m === 'string').join(' ');
-    if (typeof message === 'string') return message;
-  }
-  return fallback;
+  if (!payload || typeof payload !== 'object') return fallback;
+  const response = payload as {
+    message?: unknown;
+    issues?: unknown;
+  };
+  const message = Array.isArray(response.message)
+    ? response.message.filter((item): item is string => typeof item === 'string').join(' ')
+    : typeof response.message === 'string'
+      ? response.message
+      : fallback;
+  if (!Array.isArray(response.issues)) return message;
+
+  const issues = response.issues
+    .map((issue) => {
+      if (!issue || typeof issue !== 'object') return null;
+      const item = issue as { path?: unknown; message?: unknown };
+      if (typeof item.message !== 'string') return null;
+      return typeof item.path === 'string' && item.path.length > 0
+        ? `${item.path}: ${item.message}`
+        : item.message;
+    })
+    .filter((issue): issue is string => issue !== null);
+  return issues.length > 0 ? `${message} ${[...new Set(issues)].join(' ')}` : message;
 }
 
 export class ApiClient {
@@ -68,6 +85,7 @@ export class ApiClient {
       throw new ApiError(
         response.status,
         extractMessage(payload, `Request failed with status ${response.status}.`),
+        response.headers.get('X-Correlation-Id') ?? undefined,
       );
     }
 

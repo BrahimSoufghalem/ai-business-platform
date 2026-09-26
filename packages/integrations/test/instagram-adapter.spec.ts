@@ -3,8 +3,10 @@ import { parseTenantId } from '@ai-business/domain';
 import { describe, expect, it, vi } from 'vitest';
 import {
   InstagramConfigurationError,
+  InstagramCredentialValidationError,
   InstagramDeliveryError,
   InstagramLiveAdapter,
+  validateInstagramCredentials,
   verifyInstagramWebhookChallenge,
 } from '../src/instagram-adapter.js';
 
@@ -23,6 +25,60 @@ function adapter(overrides: Partial<ConstructorParameters<typeof InstagramLiveAd
 }
 
 describe('InstagramLiveAdapter', () => {
+  it('validates the connected account with Meta before credentials are stored', async () => {
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ id: accountId, username: 'store.test' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(
+      validateInstagramCredentials({ accountId, accessToken, fetchImplementation }),
+    ).resolves.toEqual({ accountId, username: 'store.test' });
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: `/v26.0/${accountId}`,
+        search: '?fields=id%2Cusername',
+      }),
+      expect.objectContaining({
+        method: 'GET',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+    );
+  });
+
+  it('rejects invalid Instagram credentials without exposing the token', async () => {
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { message: `Invalid token ${accessToken}`, type: 'OAuthException', code: 190 },
+        }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const error = await validateInstagramCredentials({
+      accountId,
+      accessToken,
+      fetchImplementation,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(InstagramCredentialValidationError);
+    expect(error).toMatchObject({ status: 401, providerCode: 190, reason: 'invalid_credentials' });
+    expect(String(error)).not.toContain(accessToken);
+  });
+
+  it('distinguishes a Meta outage from invalid credentials', async () => {
+    const fetchImplementation = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(
+      validateInstagramCredentials({ accountId, accessToken, fetchImplementation }),
+    ).rejects.toMatchObject({ status: 503, reason: 'provider_unavailable' });
+  });
+
   it('validates the exact raw webhook bytes with X-Hub-Signature-256', async () => {
     const rawBody = Buffer.from('{"message":"مرحبا"}', 'utf8');
     const signature = `sha256=${createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;

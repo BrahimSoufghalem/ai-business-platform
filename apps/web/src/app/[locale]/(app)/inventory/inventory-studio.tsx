@@ -318,7 +318,12 @@ export function InventoryStudio() {
                       )}
                     </Badge>
                   </Td>
-                  <Td numeric>{formatNumber(movement.quantity, locale)}</Td>
+                  <Td numeric>
+                    {formatNumber(
+                      movement.type === 'adjust' ? movement.onHandDelta : movement.quantity,
+                      locale,
+                    )}
+                  </Td>
                   <Td numeric>
                     {movement.onHandDelta > 0 ? '+' : ''}
                     {formatNumber(movement.onHandDelta, locale)} →{' '}

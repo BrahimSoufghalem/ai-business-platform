@@ -33,6 +33,11 @@ interface MetaDeliveryBody {
   readonly message_id?: string;
 }
 
+interface MetaAccountBody {
+  readonly id?: string;
+  readonly username?: string;
+}
+
 export class InstagramConfigurationError extends Error {
   constructor(message: string) {
     super(message);
@@ -58,6 +63,91 @@ export class InstagramDeliveryError extends Error {
     );
     this.name = 'InstagramDeliveryError';
   }
+}
+
+export class InstagramCredentialValidationError extends Error {
+  constructor(
+    readonly status: number,
+    readonly providerCode: number | null,
+    readonly reason:
+      'invalid_credentials' | 'invalid_response' | 'provider_unavailable' | 'network' | 'timeout',
+  ) {
+    super(`Instagram credential validation failed (${status}/${reason}).`);
+    this.name = 'InstagramCredentialValidationError';
+  }
+}
+
+export interface InstagramCredentialValidationConfiguration {
+  readonly accountId: string;
+  readonly accessToken: string;
+  readonly graphApiVersion?: string;
+  readonly graphBaseUrl?: string;
+  readonly timeoutMs?: number;
+  readonly fetchImplementation?: typeof fetch;
+}
+
+export async function validateInstagramCredentials(
+  configuration: InstagramCredentialValidationConfiguration,
+): Promise<{ readonly accountId: string; readonly username: string | null }> {
+  if (!/^[0-9]{1,80}$/u.test(configuration.accountId)) {
+    throw new InstagramConfigurationError('Instagram professional account ID is invalid.');
+  }
+  if (configuration.accessToken.trim().length < 10) {
+    throw new InstagramConfigurationError('Instagram access token is missing or too short.');
+  }
+  const version = configuration.graphApiVersion ?? DEFAULT_GRAPH_VERSION;
+  if (!/^v[0-9]{1,2}\.[0-9]$/u.test(version)) {
+    throw new InstagramConfigurationError('Meta Graph API version is invalid.');
+  }
+  const baseUrl = new URL(configuration.graphBaseUrl ?? DEFAULT_GRAPH_BASE_URL);
+  if (baseUrl.protocol !== 'https:') {
+    throw new InstagramConfigurationError('Meta Graph base URL must use HTTPS.');
+  }
+  const timeoutMs = configuration.timeoutMs ?? 10_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30_000) {
+    throw new InstagramConfigurationError('Instagram timeout must be between 100 and 30000ms.');
+  }
+
+  const endpoint = new URL(
+    `${baseUrl.toString().replace(/\/$/u, '')}/${version}/${configuration.accountId}`,
+  );
+  endpoint.searchParams.set('fields', 'id,username');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
+  try {
+    response = await (configuration.fetchImplementation ?? fetch)(endpoint, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${configuration.accessToken}` },
+      signal: controller.signal,
+    });
+  } catch {
+    throw new InstagramCredentialValidationError(
+      0,
+      null,
+      controller.signal.aborted ? 'timeout' : 'network',
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const body = (await response.json().catch(() => null)) as MetaAccountBody | MetaErrorBody | null;
+  if (!response.ok) {
+    const providerError = record(record(body)?.error);
+    throw new InstagramCredentialValidationError(
+      response.status,
+      typeof providerError?.code === 'number' ? providerError.code : null,
+      [400, 401, 403].includes(response.status) ? 'invalid_credentials' : 'provider_unavailable',
+    );
+  }
+  const returnedId = safeIdentifier(record(body)?.id);
+  if (returnedId !== configuration.accountId) {
+    throw new InstagramCredentialValidationError(response.status, null, 'invalid_response');
+  }
+  return {
+    accountId: returnedId,
+    username: safeIdentifier(record(body)?.username),
+  };
 }
 
 function record(value: unknown): Record<string, unknown> | null {

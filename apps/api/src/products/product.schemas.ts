@@ -50,6 +50,7 @@ export const updateProductSchema = z
       .optional(),
     customAttributes: customAttributesSchema.optional(),
     variants: z.array(variantSchema).max(200).optional(),
+    publish: z.boolean().optional(),
   })
   .refine(
     (value) =>
@@ -60,7 +61,8 @@ export const updateProductSchema = z
       value.basePrice !== undefined ||
       value.currency !== undefined ||
       value.customAttributes !== undefined ||
-      value.variants !== undefined,
+      value.variants !== undefined ||
+      value.publish !== undefined,
     { message: 'Provide at least one field to update.' },
   );
 
@@ -89,8 +91,17 @@ export const createMediaTicketSchema = z.object({
   sortOrder: z.number().int().min(0).max(1000).default(0),
 });
 
+export const uploadProductMediaSchema = createMediaTicketSchema.extend({
+  dataBase64: z
+    .string()
+    .min(4)
+    .max(7_000_000)
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/u),
+});
+
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export type ProductSearchInput = z.infer<typeof productSearchSchema>;
 export type ContentLinkInput = z.infer<typeof contentLinkSchema>;
 export type CreateMediaTicketInput = z.infer<typeof createMediaTicketSchema>;
+export type UploadProductMediaInput = z.infer<typeof uploadProductMediaSchema>;

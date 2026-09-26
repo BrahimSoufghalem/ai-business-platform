@@ -3,7 +3,12 @@ import type { VerifiedIdentity } from '@ai-business/auth';
 import { CorrelationId, CurrentIdentity } from '../auth/request-context.decorator.js';
 import { tenantIdSchema } from '../tenants/tenant.schemas.js';
 import { parseWithSchema } from './http-validation.js';
-import { createMediaTicketSchema, mediaIdSchema, productIdSchema } from './product.schemas.js';
+import {
+  createMediaTicketSchema,
+  mediaIdSchema,
+  productIdSchema,
+  uploadProductMediaSchema,
+} from './product.schemas.js';
 import { ProductMediaService } from './product-media.service.js';
 
 function uuid(schema: typeof productIdSchema, value: string, label: string): string {
@@ -15,6 +20,23 @@ function uuid(schema: typeof productIdSchema, value: string, label: string): str
 @Controller('tenants/:tenantId/products/:productId/media')
 export class ProductMediaController {
   constructor(@Inject(ProductMediaService) private readonly media: ProductMediaService) {}
+
+  @Post('upload')
+  upload(
+    @CurrentIdentity() identity: VerifiedIdentity,
+    @CorrelationId() correlationId: string,
+    @Param('tenantId') candidateTenantId: string,
+    @Param('productId') candidateProductId: string,
+    @Body() body: unknown,
+  ) {
+    return this.media.upload(
+      identity,
+      correlationId,
+      uuid(tenantIdSchema, candidateTenantId, 'tenant'),
+      uuid(productIdSchema, candidateProductId, 'product'),
+      parseWithSchema(uploadProductMediaSchema, body),
+    );
+  }
 
   @Post('upload-ticket')
   createUploadTicket(

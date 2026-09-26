@@ -21,6 +21,7 @@ export interface OperationsAlert {
   readonly severity: AlertSeverity;
   readonly title: string;
   readonly detail: string;
+  readonly data: Readonly<Record<string, string | number | null>>;
   readonly entityId: string;
   readonly correlationId: string | null;
   readonly occurredAt: string;
@@ -251,6 +252,14 @@ export class OperationsService {
         severity: row.available === 0 ? 'critical' : 'warning',
         title: row.available === 0 ? 'نفد المخزون' : 'تنبيه مخزون منخفض',
         detail: `${row.productName} · ${row.variantName ?? row.sku} · ${row.locationName} — المتاح ${row.available}، حد إعادة الطلب ${row.reorderPoint}`,
+        data: {
+          productName: row.productName,
+          variantName: row.variantName,
+          sku: row.sku,
+          locationName: row.locationName,
+          available: row.available,
+          reorderPoint: row.reorderPoint,
+        },
         entityId: row.id,
         correlationId: null,
         occurredAt: iso(row.updatedAt),
@@ -261,6 +270,7 @@ export class OperationsService {
         severity: row.waitSeconds >= handoffWarningSeconds * 2 ? 'critical' : 'warning',
         title: 'تحويل ينتظر موظفًا',
         detail: `المحادثة تنتظر منذ ${Math.floor(row.waitSeconds / 60)} دقيقة.`,
+        data: { waitMinutes: Math.floor(row.waitSeconds / 60) },
         entityId: row.conversationId,
         correlationId: null,
         occurredAt: iso(row.requestedAt),
@@ -271,6 +281,7 @@ export class OperationsService {
         severity: row.kind === 'command' ? 'critical' : 'warning',
         title: row.status === 'rejected' ? 'رفض استدعاء أداة' : 'فشل استدعاء أداة',
         detail: `${row.name} — ${row.errorCode}`,
+        data: { name: row.name, errorCode: row.errorCode, status: row.status },
         entityId: row.runId,
         correlationId: row.correlationId,
         occurredAt: iso(row.createdAt),

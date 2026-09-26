@@ -1,12 +1,13 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useApi, useStore, useTenantPath } from '../../../../../components/providers';
 import { useAsyncData } from '../../../../../lib/use-async-data';
 import { formatDateTime, formatMoney } from '../../../../../lib/format';
-import type { ProductView } from '../../../../../lib/api/types';
+import type { ProductTypeView, ProductView } from '../../../../../lib/api/types';
+import { ApiError } from '../../../../../lib/api/client';
 import { PageHeader } from '../../../../../components/ui/page-header';
 import { Breadcrumbs } from '../../../../../components/ui/breadcrumbs';
 import { Badge } from '../../../../../components/ui/badge';
@@ -20,14 +21,22 @@ import { Icon } from '../../../../../components/icons';
 import { useToast } from '../../../../../components/ui/toast';
 import { ProductForm } from '../product-form';
 
-interface UploadTicketResponse {
-  mediaId: string;
-  objectKey: string;
-  uploadUrl: string;
-  expiresAt: string;
-}
-
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MAX_MEDIA_SIZE = 5 * 1024 * 1024;
+
+function fileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('read_failed'));
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const separator = result.indexOf(',');
+      if (separator < 0) reject(new Error('read_failed'));
+      else resolve(result.slice(separator + 1));
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 export function ProductDetails() {
   const t = useTranslations('products');
@@ -43,7 +52,8 @@ export function ProductDetails() {
 
   const [editing, setEditing] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [confirmRestore, setConfirmRestore] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -53,6 +63,14 @@ export function ProductDetails() {
     [api, tenant, params.id],
   );
   const product = query.data;
+  const typesQuery = useAsyncData<ProductTypeView[]>(
+    (signal) => api.get(tenant('/product-types'), { signal }),
+    [api, tenant],
+  );
+  const attributeLabels = useMemo(() => {
+    const selected = typesQuery.data?.find((type) => type.id === product?.productTypeId);
+    return new Map(selected?.attributes.map((definition) => [definition.key, definition.label]));
+  }, [product?.productTypeId, typesQuery.data]);
 
   async function publish() {
     if (!product) return;
@@ -61,40 +79,49 @@ export function ProductDetails() {
     query.reload();
   }
 
-  async function remove() {
+  async function archive() {
     if (!product) return;
     await api.delete(tenant(`/products/${product.id}`));
-    toast(t('deleted'), 'success');
+    toast(t('archived'), 'success');
     router.push(`/${locale}/products`);
+  }
+
+  async function restore() {
+    if (!product) return;
+    const restored = await api.post<ProductView>(tenant(`/products/${product.id}/restore`), {});
+    query.setData(restored);
+    toast(t('restored'), 'success');
   }
 
   async function uploadFile(file: File) {
     if (!product || !ACCEPTED_TYPES.includes(file.type)) {
-      setUploadError(t('mediaFailed'));
+      setUploadError(t('mediaInvalidType'));
+      return;
+    }
+    if (file.size > MAX_MEDIA_SIZE) {
+      setUploadError(t('mediaTooLarge'));
       return;
     }
     setUploadError(null);
     setUploading(true);
     try {
-      const ticket = await api.post<UploadTicketResponse>(
-        tenant(`/products/${product.id}/media/upload-ticket`),
-        {
-          filename: file.name,
-          contentType: file.type,
-          altText: product.name,
-          sortOrder: product.media.length,
-        },
-      );
-      const upload = await fetch(ticket.uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
+      await api.post(tenant(`/products/${product.id}/media/upload`), {
+        filename: file.name,
+        contentType: file.type,
+        altText: product.name,
+        sortOrder: product.media.length,
+        dataBase64: await fileAsBase64(file),
       });
-      if (!upload.ok) throw new Error('upload failed');
-      await api.post(tenant(`/products/${product.id}/media/${ticket.mediaId}/complete`), {});
+      toast(t('mediaUploaded'), 'success');
       query.reload();
-    } catch {
-      setUploadError(t('mediaFailed'));
+    } catch (caught) {
+      setUploadError(
+        caught instanceof ApiError
+          ? caught.status === 0
+            ? tc('connectionError')
+            : caught.message
+          : t('mediaFailed'),
+      );
     } finally {
       setUploading(false);
     }
@@ -145,7 +172,7 @@ export function ProductDetails() {
         actions={
           canWrite ? (
             <>
-              {product.status !== 'active' ? (
+              {product.status === 'draft' ? (
                 <Button
                   variant="secondary"
                   onClick={() => setConfirmPublish(true)}
@@ -154,20 +181,32 @@ export function ProductDetails() {
                   {tc('publish')}
                 </Button>
               ) : null}
-              <Button
-                variant="secondary"
-                onClick={() => setEditing(true)}
-                icon={<Icon name="pencil" size={16} />}
-              >
-                {tc('edit')}
-              </Button>
-              <Button
-                variant="danger-secondary"
-                onClick={() => setConfirmDelete(true)}
-                icon={<Icon name="trash" size={16} />}
-              >
-                {tc('delete')}
-              </Button>
+              {product.status === 'archived' ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => setConfirmRestore(true)}
+                  icon={<Icon name="refresh" size={16} />}
+                >
+                  {t('restore')}
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setEditing(true)}
+                    icon={<Icon name="pencil" size={16} />}
+                  >
+                    {tc('edit')}
+                  </Button>
+                  <Button
+                    variant="danger-secondary"
+                    onClick={() => setConfirmArchive(true)}
+                    icon={<Icon name="box" size={16} />}
+                  >
+                    {tc('archive')}
+                  </Button>
+                </>
+              )}
             </>
           ) : undefined
         }
@@ -214,7 +253,7 @@ export function ProductDetails() {
                 <dl className="detail-list">
                   {Object.entries(product.customAttributes).map(([key, value]) => (
                     <div key={key} style={{ display: 'contents' }}>
-                      <dt translate="no">{key}</dt>
+                      <dt>{attributeLabels.get(key) ?? key}</dt>
                       <dd dir="auto">{String(value)}</dd>
                     </div>
                   ))}
@@ -255,7 +294,7 @@ export function ProductDetails() {
                       <Td ellipsis>
                         <span className="cell-sub" dir="auto">
                           {Object.entries(variant.attributes)
-                            .map(([k, v]) => `${k}: ${String(v)}`)
+                            .map(([k, v]) => `${attributeLabels.get(k) ?? k}: ${String(v)}`)
                             .join(' · ') || '—'}
                         </span>
                       </Td>
@@ -349,13 +388,21 @@ export function ProductDetails() {
         confirmLabel={t('publishConfirm')}
       />
       <ConfirmDialog
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        onConfirm={remove}
-        title={t('deleteTitle')}
-        body={t('deleteBody', { name: product.name })}
-        confirmLabel={t('deleteConfirm')}
+        open={confirmArchive}
+        onClose={() => setConfirmArchive(false)}
+        onConfirm={archive}
+        title={t('archiveTitle')}
+        body={t('archiveBody', { name: product.name })}
+        confirmLabel={t('archiveConfirm')}
         danger
+      />
+      <ConfirmDialog
+        open={confirmRestore}
+        onClose={() => setConfirmRestore(false)}
+        onConfirm={restore}
+        title={t('restoreTitle')}
+        body={t('restoreBody', { name: product.name })}
+        confirmLabel={t('restore')}
       />
     </>
   );

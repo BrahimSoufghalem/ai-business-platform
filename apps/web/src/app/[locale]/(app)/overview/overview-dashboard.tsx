@@ -219,6 +219,42 @@ export function OverviewDashboard() {
 
 function AlertRow({ alert }: { alert: OperationsAlert }) {
   const locale = useLocale();
+  const t = useTranslations('overview');
+  const data = alert.data ?? {};
+  const title =
+    alert.kind === 'low_stock'
+      ? Number(data.available) === 0
+        ? t('alertOutOfStockTitle')
+        : t('alertLowStockTitle')
+      : alert.kind === 'handoff_wait'
+        ? t('alertHandoffTitle')
+        : alert.kind === 'ai_tool_failure'
+          ? data.status === 'rejected'
+            ? t('alertToolRejectedTitle')
+            : t('alertToolFailedTitle')
+          : alert.title;
+  const detail =
+    alert.kind === 'low_stock' && typeof data.productName === 'string'
+      ? t('alertLowStockDetail', {
+          product: data.productName,
+          variant:
+            typeof data.variantName === 'string'
+              ? data.variantName
+              : typeof data.sku === 'string'
+                ? data.sku
+                : '—',
+          location: typeof data.locationName === 'string' ? data.locationName : '—',
+          available: formatNumber(Number(data.available ?? 0), locale),
+          reorderPoint: formatNumber(Number(data.reorderPoint ?? 0), locale),
+        })
+      : alert.kind === 'handoff_wait' && typeof data.waitMinutes === 'number'
+        ? t('alertHandoffDetail', { minutes: formatNumber(data.waitMinutes, locale) })
+        : alert.kind === 'ai_tool_failure' && typeof data.name === 'string'
+          ? t('alertToolDetail', {
+              name: data.name,
+              code: typeof data.errorCode === 'string' ? data.errorCode : '—',
+            })
+          : alert.detail;
   const icon =
     alert.severity === 'critical'
       ? 'alert-circle'
@@ -242,10 +278,10 @@ function AlertRow({ alert }: { alert: OperationsAlert }) {
       </span>
       <div className="alert-row__body">
         <p className="alert-row__title" dir="auto">
-          {alert.title}
+          {title}
         </p>
         <p className="alert-row__detail" dir="auto">
-          {alert.detail}
+          {detail}
         </p>
       </div>
       <span className="alert-row__time">{formatRelativeTime(alert.occurredAt, locale)}</span>

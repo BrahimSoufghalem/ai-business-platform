@@ -27,6 +27,11 @@ export interface StoredObjectMetadata {
 }
 
 export interface ObjectStorage {
+  put(input: {
+    readonly objectKey: string;
+    readonly contentType: string;
+    readonly body: Uint8Array;
+  }): Promise<StoredObjectMetadata>;
   createUploadTicket(input: {
     readonly objectKey: string;
     readonly contentType: string;
@@ -64,6 +69,22 @@ export class S3ObjectStorage implements ObjectStorage {
         secretAccessKey: config.secretAccessKey,
       },
     });
+  }
+
+  async put(input: {
+    readonly objectKey: string;
+    readonly contentType: string;
+    readonly body: Uint8Array;
+  }): Promise<StoredObjectMetadata> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.config.bucket,
+        Key: input.objectKey,
+        ContentType: input.contentType,
+        Body: input.body,
+      }),
+    );
+    return { contentType: input.contentType, sizeBytes: input.body.byteLength };
   }
 
   async createUploadTicket(input: {

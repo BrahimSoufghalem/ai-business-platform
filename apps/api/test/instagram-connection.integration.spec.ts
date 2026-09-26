@@ -65,7 +65,10 @@ describeWithDatabase('Instagram tenant connection', () => {
     `;
 
     database = new DatabaseService();
-    connections = new InstagramConnectionService(database);
+    connections = new InstagramConnectionService(database, async ({ accountId }) => ({
+      accountId,
+      username: 'test-account',
+    }));
     webhooks = new InstagramWebhookService(database);
   });
 

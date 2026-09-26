@@ -362,7 +362,7 @@ function KnowledgeTab() {
         onConfirm={async () => {
           if (publishTarget) await publish(publishTarget);
         }}
-        title={t('entryPublished')}
+        title={t('publishEntryTitle')}
         body={t('publishBody')}
         confirmLabel={tc('publish')}
       />

@@ -32,7 +32,6 @@ interface FormState {
   description: string;
   basePrice: string;
   currency: string;
-  status: 'draft' | 'active';
   attributes: Record<string, unknown>;
   variants: VariantDraft[];
 }
@@ -46,7 +45,6 @@ function toState(product: ProductView | null): FormState {
       description: '',
       basePrice: '',
       currency: 'DZD',
-      status: 'draft',
       attributes: {},
       variants: [],
     };
@@ -58,7 +56,6 @@ function toState(product: ProductView | null): FormState {
     description: product.description ?? '',
     basePrice: product.basePrice,
     currency: product.currency,
-    status: product.status === 'active' ? 'active' : 'draft',
     attributes: { ...product.customAttributes },
     variants: product.variants.map((variant) => ({
       sku: variant.sku,
@@ -114,6 +111,16 @@ export function ProductForm({ product }: { product: ProductView | null }) {
     setState((current) => ({ ...current, attributes: { ...current.attributes, [key]: value } }));
   }
 
+  function changeProductType(productTypeId: string) {
+    setDirty(true);
+    setState((current) => ({
+      ...current,
+      productTypeId,
+      attributes: {},
+      variants: current.variants.map((variant) => ({ ...variant, attributes: {} })),
+    }));
+  }
+
   function variantAttributes(definitions: AttributeDefinition[]): AttributeDefinition[] {
     return definitions.filter((definition) => definition.variantAxis);
   }
@@ -160,7 +167,7 @@ export function ProductForm({ product }: { product: ProductView | null }) {
         description: state.description.trim() || null,
         basePrice: state.basePrice.trim(),
         currency: state.currency.trim().toUpperCase(),
-        status: state.status,
+        status: publishAfter ? ('active' as const) : ('draft' as const),
         customAttributes: state.attributes,
         variants: state.variants
           .filter((variant) => variant.sku.trim())
@@ -185,26 +192,27 @@ export function ProductForm({ product }: { product: ProductView | null }) {
           currency: payload.currency,
           customAttributes: payload.customAttributes,
           variants: payload.variants,
+          publish: publishAfter && product.status !== 'active',
         });
-        toast(t('updated'), 'success');
+        toast(
+          publishAfter && product.status !== 'active' ? t('published') : t('updated'),
+          'success',
+        );
       } else {
         saved = await api.post<ProductView>(tenant('/products'), payload);
-        toast(t('created'), 'success');
-      }
-
-      if (publishAfter && saved.status !== 'active') {
-        saved = await api.post<ProductView>(tenant(`/products/${saved.id}/publish`), {});
-        toast(t('published'), 'success');
+        toast(publishAfter ? t('published') : t('created'), 'success');
       }
 
       setDirty(false);
       router.push(`/${locale}/products/${saved.id}`);
       router.refresh();
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
+      if (error instanceof ApiError && error.status === 409 && product) {
         setFormError(t('expectedVersionConflict'));
+      } else if (error instanceof ApiError && error.status === 409) {
+        setFormError(t('duplicateProduct'));
       } else if (error instanceof ApiError) {
-        setFormError(error.message);
+        setFormError(error.status === 0 ? tc('connectionError') : error.message);
       } else {
         setFormError(tc('connectionError'));
       }
@@ -254,10 +262,10 @@ export function ProductForm({ product }: { product: ProductView | null }) {
                 style={{ textAlign: 'start' }}
               />
             </FormField>
-            <FormField label={t('productType')} required>
+            <FormField label={t('productType')} hint={t('typeChangeWarning')} required>
               <Select
                 value={state.productTypeId}
-                onChange={(e) => update('productTypeId', e.target.value)}
+                onChange={(e) => changeProductType(e.target.value)}
                 required
               >
                 <option value="">{t('selectType')}</option>
@@ -289,15 +297,6 @@ export function ProductForm({ product }: { product: ProductView | null }) {
                 dir="ltr"
                 style={{ textAlign: 'start', width: 110 }}
               />
-            </FormField>
-            <FormField label={t('initialStatus')}>
-              <Select
-                value={state.status}
-                onChange={(e) => update('status', e.target.value as 'draft' | 'active')}
-              >
-                <option value="draft">{t('statusDraft')}</option>
-                <option value="active">{t('statusActive')}</option>
-              </Select>
             </FormField>
             <FormField label={tc('description')} className="field--full">
               <Textarea
@@ -412,17 +411,25 @@ export function ProductForm({ product }: { product: ProductView | null }) {
       </section>
 
       <div className="form-actions">
-        <Button type="submit" variant="secondary" loading={pending} disabled={invalid}>
-          {t('saveDraft')}
-        </Button>
-        <Button
-          type="button"
-          loading={pending}
-          disabled={invalid}
-          onClick={() => void submit(true)}
-        >
-          {product && product.status === 'active' ? tc('save') : t('createAndPublish')}
-        </Button>
+        {product?.status === 'active' ? (
+          <Button type="submit" loading={pending} disabled={invalid}>
+            {tc('save')}
+          </Button>
+        ) : (
+          <>
+            <Button type="submit" variant="secondary" loading={pending} disabled={invalid}>
+              {t('saveDraft')}
+            </Button>
+            <Button
+              type="button"
+              loading={pending}
+              disabled={invalid}
+              onClick={() => void submit(true)}
+            >
+              {product ? t('saveAndPublish') : t('createAndPublish')}
+            </Button>
+          </>
+        )}
       </div>
     </form>
   );

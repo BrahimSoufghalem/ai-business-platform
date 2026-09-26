@@ -13,7 +13,7 @@ export async function createApplication(
 ): Promise<NestFastifyApplication> {
   const adapter = new FastifyAdapter({
     logger: false,
-    bodyLimit: 1_048_576,
+    bodyLimit: 8 * 1_048_576,
   });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, adapter, {
     rawBody: true,

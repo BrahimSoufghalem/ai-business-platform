@@ -53,7 +53,8 @@ export function ProductsTable() {
   const page = Math.max(1, Number(searchParams.get('page') ?? '1') || 1);
 
   const [searchInput, setSearchInput] = useState(q);
-  const [pendingDelete, setPendingDelete] = useState<ProductView | null>(null);
+  const [pendingArchive, setPendingArchive] = useState<ProductView | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<ProductView | null>(null);
   const [pendingPublish, setPendingPublish] = useState<ProductView | null>(null);
 
   const queryString = useMemo(() => {
@@ -97,9 +98,15 @@ export function ProductsTable() {
     productsQuery.reload();
   }
 
-  async function deleteProduct(product: ProductView) {
+  async function archiveProduct(product: ProductView) {
     await api.delete(tenant(`/products/${product.id}`));
-    toast(t('deleted'), 'success');
+    toast(t('archived'), 'success');
+    productsQuery.reload();
+  }
+
+  async function restoreProduct(product: ProductView) {
+    await api.post(tenant(`/products/${product.id}/restore`), {});
+    toast(t('restored'), 'success');
     productsQuery.reload();
   }
 
@@ -245,15 +252,27 @@ export function ProductsTable() {
                         >
                           {tc('edit')}
                         </DropdownItem>
-                        {product.status !== 'active' ? (
+                        {product.status === 'draft' ? (
                           <DropdownItem icon="check" onClick={() => setPendingPublish(product)}>
                             {tc('publish')}
                           </DropdownItem>
                         ) : null}
-                        <DropdownSeparator />
-                        <DropdownItem icon="trash" danger onClick={() => setPendingDelete(product)}>
-                          {tc('delete')}
-                        </DropdownItem>
+                        {product.status === 'archived' ? (
+                          <DropdownItem icon="refresh" onClick={() => setPendingRestore(product)}>
+                            {t('restore')}
+                          </DropdownItem>
+                        ) : (
+                          <>
+                            <DropdownSeparator />
+                            <DropdownItem
+                              icon="box"
+                              danger
+                              onClick={() => setPendingArchive(product)}
+                            >
+                              {tc('archive')}
+                            </DropdownItem>
+                          </>
+                        )}
                       </MoreActionsDropdown>
                     ) : null}
                   </Td>
@@ -281,15 +300,25 @@ export function ProductsTable() {
         confirmLabel={t('publishConfirm')}
       />
       <ConfirmDialog
-        open={pendingDelete !== null}
-        onClose={() => setPendingDelete(null)}
+        open={pendingArchive !== null}
+        onClose={() => setPendingArchive(null)}
         onConfirm={async () => {
-          if (pendingDelete) await deleteProduct(pendingDelete);
+          if (pendingArchive) await archiveProduct(pendingArchive);
         }}
-        title={t('deleteTitle')}
-        body={pendingDelete ? t('deleteBody', { name: pendingDelete.name }) : ''}
-        confirmLabel={t('deleteConfirm')}
+        title={t('archiveTitle')}
+        body={pendingArchive ? t('archiveBody', { name: pendingArchive.name }) : ''}
+        confirmLabel={t('archiveConfirm')}
         danger
+      />
+      <ConfirmDialog
+        open={pendingRestore !== null}
+        onClose={() => setPendingRestore(null)}
+        onConfirm={async () => {
+          if (pendingRestore) await restoreProduct(pendingRestore);
+        }}
+        title={t('restoreTitle')}
+        body={pendingRestore ? t('restoreBody', { name: pendingRestore.name }) : ''}
+        confirmLabel={t('restore')}
       />
     </>
   );
