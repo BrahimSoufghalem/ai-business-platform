@@ -10,6 +10,7 @@ import { FormField } from '../../../../components/ui/form-field';
 import { Input } from '../../../../components/ui/input';
 import { PasswordInput } from '../../../../components/ui/password-input';
 import { InlineAlert } from '../../../../components/ui/alert';
+import { BrandLockup } from '../../../../components/brand';
 
 export function LoginForm() {
   const t = useTranslations('auth');
@@ -47,8 +48,8 @@ export function LoginForm() {
 
   return (
     <div className="auth-card">
-      <p className="auth-card__brand" translate="no">
-        AI Business Platform
+      <p className="auth-card__brand">
+        <BrandLockup />
       </p>
       <h1 className="auth-card__title">{t('loginTitle')}</h1>
       <p className="auth-card__subtitle">{t('loginSubtitle')}</p>

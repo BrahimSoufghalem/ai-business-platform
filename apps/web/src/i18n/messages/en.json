@@ -68,6 +68,264 @@
     "loadFailed": "Could not load the data. Try again.",
     "mainNav": "Main navigation"
   },
+  "legal": {
+    "eyebrow": "Legal",
+    "lastUpdated": "Last updated",
+    "navLabel": "Legal documents",
+    "contactEmail": "ibrahimsoufghalm@gmail.com",
+    "nav": {
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service",
+      "dataDeletion": "Data Deletion"
+    },
+    "footer": {
+      "tagline": "Business management and customer communication.",
+      "legal": "Legal",
+      "contact": "Contact",
+      "rights": "All rights reserved."
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "metaDescription": "How Noxi collects, uses, stores, and protects information, including data from connected Instagram and Meta integrations.",
+      "intro": "This Privacy Policy explains how Noxi (“we”, “us”) collects, uses, stores, and protects information when you use the Noxi platform (the “Service”). Noxi is a software-as-a-service platform for businesses; it provides tools for managing products, inventory, orders, customers, and customer communication, including integrations with messaging services such as Instagram.",
+      "sections": [
+        {
+          "title": "About this policy",
+          "paragraphs": [
+            "This policy applies to the Noxi website and platform, including when you create an account, use the Service, or connect third-party services such as Instagram.",
+            "Where the Service is used by a business, the business is responsible for the customer data it collects, and Noxi processes that data on the business’s behalf to provide the Service."
+          ]
+        },
+        {
+          "title": "Information you provide",
+          "paragraphs": ["When you create an account or use the Service, you may provide:"],
+          "bullets": [
+            "Account information, such as your name, email address, and authentication details.",
+            "Business information, such as your store or business name, locale, timezone, and configuration (product types, attributes, and business rules).",
+            "Operational data you enter, such as products, product types and variants, inventory records, orders, customers, and related notes."
+          ]
+        },
+        {
+          "title": "Information generated while using the Service",
+          "bullets": [
+            "Conversations and messages: customer conversations and messages exchanged through the channels you connect, with related metadata such as timestamps and delivery status.",
+            "Customer information: contact details and messaging identifiers of your customers that you or the connected channels provide.",
+            "Technical information: log entries, error diagnostics, request metadata, and similar data generated while the Service operates."
+          ],
+          "paragraphs": [
+            "Our diagnostics are structural: we do not record secrets such as access tokens, app secrets, or webhook verification values in logs."
+          ]
+        },
+        {
+          "title": "Connected Instagram and Meta accounts",
+          "paragraphs": [
+            "If you connect an Instagram account, you authorize Noxi to access the Instagram Messaging API through Meta’s platform. We receive and store identifiers for your Instagram professional account and the access credentials needed for the integration, which are stored in encrypted form.",
+            "We process Instagram and Meta data only to provide the integration and communication functionality you requested."
+          ]
+        },
+        {
+          "title": "Webhook data",
+          "paragraphs": [
+            "When a messaging integration is connected, Noxi receives webhook events from Meta for events such as incoming messages and message reactions. These events are processed to deliver messages into your workspace and are stored as part of your conversation records.",
+            "Webhook events are verified by signature and processed idempotently to prevent duplicate records."
+          ]
+        },
+        {
+          "title": "How we use information",
+          "bullets": [
+            "Provide, operate, and maintain the Service.",
+            "Deliver the messaging integration features you enable, including routing incoming messages to the correct business account.",
+            "Support AI-assisted replies and workflow automation grounded in your business data and configured rules.",
+            "Maintain security, prevent misuse, and diagnose technical problems.",
+            "Communicate with you about your account and important changes to the Service.",
+            "Comply with legal obligations that apply to us."
+          ],
+          "paragraphs": ["We do not sell your personal information."]
+        },
+        {
+          "title": "Storage and security",
+          "paragraphs": [
+            "Information is stored in the databases and infrastructure used to operate the Service, with access limited to what is required to run and support the platform.",
+            "We apply reasonable technical and organizational measures, including encryption of integration credentials, tenant isolation between businesses, and restricted internal access.",
+            "No method of transmission or storage is completely secure, and we cannot guarantee absolute security."
+          ]
+        },
+        {
+          "title": "Data retention",
+          "paragraphs": [
+            "We retain account and business data for as long as your account is active and as needed to provide the Service.",
+            "Conversation and message data is retained as part of your workspace records until it is deleted or your account is closed.",
+            "Log and diagnostic data is retained for a limited period for security and troubleshooting purposes.",
+            "When you request deletion, we delete or anonymize the relevant data within a reasonable period, except where we must retain limited records to comply with legal obligations or resolve disputes."
+          ]
+        },
+        {
+          "title": "Sharing and service providers",
+          "paragraphs": [
+            "We use infrastructure and service providers (such as hosting, database, and messaging platforms) that process data on our behalf to operate the Service.",
+            "When you connect Instagram, data is exchanged with Meta’s platforms according to your authorization and Meta’s terms.",
+            "We do not sell personal data, and we disclose data to third parties only as needed to operate the Service or when required by law."
+          ]
+        },
+        {
+          "title": "Business customer data",
+          "paragraphs": [
+            "When we process data about your customers on your behalf, you are responsible for ensuring that you have the right to share that data with the Service. We process it only to provide the Service to you and as described in this policy."
+          ]
+        },
+        {
+          "title": "Your choices and requests",
+          "paragraphs": [
+            "You can request access to, correction of, or deletion of your account and business data by contacting us at the email below. Deletion requests are handled as described on our Data Deletion page."
+          ]
+        },
+        {
+          "title": "Disconnecting a connected account",
+          "paragraphs": [
+            "You can disconnect a connected Instagram account from the Service. After disconnection, we stop receiving and processing new data from that account.",
+            "You can also revoke Noxi’s access from your Instagram or Meta account settings. To delete data that was already received, use the request process on our Data Deletion page."
+          ]
+        },
+        {
+          "title": "Changes to this policy",
+          "paragraphs": [
+            "We may update this policy as the Service evolves. When we do, we update the “Last updated” date above and, for significant changes, provide notice within the Service."
+          ]
+        }
+      ],
+      "contactTitle": "Contact us",
+      "contactBody": "For privacy questions or requests, contact us at:"
+    },
+    "terms": {
+      "title": "Terms of Service",
+      "metaDescription": "The terms that govern the use of Noxi, a business management and customer communication platform.",
+      "intro": "These Terms of Service (“Terms”) govern your access to and use of Noxi (the “Service”). By creating an account or using the Service, you agree to these Terms.",
+      "sections": [
+        {
+          "title": "The Service",
+          "paragraphs": [
+            "Noxi is a business management and customer communication platform. It provides tools for managing products, inventory, orders, customers, and customer communication, including messaging integrations such as Instagram and AI-assisted communication features.",
+            "Your business data remains yours: the platform stores and organizes it, and AI features operate on top of your data and the rules you configure."
+          ]
+        },
+        {
+          "title": "Accounts and access",
+          "paragraphs": [
+            "You must provide accurate account information and keep your credentials secure. You are responsible for activity under your account and for the access you grant to team members, and you must be authorized to act on behalf of the business you register."
+          ]
+        },
+        {
+          "title": "Acceptable use",
+          "bullets": [
+            "Do not use the Service to send spam or unlawful, misleading, or abusive communications.",
+            "Comply with the terms and policies of connected platforms, including Meta’s platform and messaging policies.",
+            "Do not attempt to bypass security measures, tenant isolation, or usage limits, and do not disrupt or reverse engineer the Service.",
+            "Do not store or send content that is unlawful or infringes the rights of others."
+          ]
+        },
+        {
+          "title": "Your business and customer data",
+          "paragraphs": [
+            "You are responsible for the data you and your team store in the Service, including customer data, and for how you communicate with your customers.",
+            "You must have a lawful basis to contact your customers through the connected channels.",
+            "We process your data as described in the Privacy Policy."
+          ]
+        },
+        {
+          "title": "Connected third-party services",
+          "paragraphs": [
+            "The Service can connect to third-party services such as Instagram and other Meta platforms. Your use of those services is governed by their own terms and policies.",
+            "Connected features depend on third-party APIs and approvals. Their availability can change, and we are not responsible for third-party service interruptions or decisions.",
+            "You are responsible for maintaining your connected accounts and the permissions you grant."
+          ]
+        },
+        {
+          "title": "Service availability",
+          "paragraphs": [
+            "We work to keep the Service available and reliable, but we do not guarantee uninterrupted or error-free operation, especially while the product is evolving. We may perform maintenance and may change or remove features over time."
+          ]
+        },
+        {
+          "title": "Changes to the Service and these Terms",
+          "paragraphs": [
+            "We may update the Service and these Terms. Significant changes will be communicated in the Service or by email. If you continue to use the Service after changes take effect, you accept the updated Terms."
+          ]
+        },
+        {
+          "title": "Data and deletion",
+          "paragraphs": [
+            "You can request deletion of your account and data at any time as described on our Data Deletion page.",
+            "How we handle data, including retention and deletion, is described in our Privacy Policy."
+          ]
+        },
+        {
+          "title": "Suspension and termination",
+          "paragraphs": [
+            "We may suspend or terminate access if these Terms are violated or if it is necessary for security or legal reasons. You can stop using the Service at any time and request deletion of your data."
+          ]
+        }
+      ],
+      "contactTitle": "Contact us",
+      "contactBody": "Questions about these Terms? Contact us at:"
+    },
+    "dataDeletion": {
+      "title": "Data Deletion",
+      "metaDescription": "How to request deletion of your Noxi account data and connected Instagram integration data.",
+      "intro": "This page explains how to request deletion of data associated with your Noxi account, including data received through a connected Instagram integration. Noxi is a business management and customer communication platform.",
+      "sections": [
+        {
+          "title": "What you can request",
+          "paragraphs": ["You can request deletion of:"],
+          "bullets": [
+            "Your Noxi account and authentication data.",
+            "Your business or store data, including products, inventory, orders, and customers you stored in the Service.",
+            "Connected Instagram integration data, including stored account identifiers and the access credentials used for the integration.",
+            "Conversation and message data received through connected channels, where applicable, including data received through Instagram webhooks."
+          ]
+        },
+        {
+          "title": "How to request deletion",
+          "paragraphs": [
+            "Send your request from the email address associated with your Noxi account:"
+          ],
+          "bullets": [
+            "Email us at ibrahimsoufghalm@gmail.com with the subject “Data deletion request”.",
+            "Tell us what to delete, for example “my account and all store data” or “the connected Instagram integration for store X”.",
+            "If your request concerns an Instagram integration, include the store name or the connected Instagram username so we can find the right records.",
+            "We may ask you to verify that you control the account before we proceed."
+          ]
+        },
+        {
+          "title": "What happens next",
+          "bullets": [
+            "We confirm that we received your request and verify account ownership.",
+            "We delete the requested data, or anonymize it where deletion is not technically possible (for example, in backups), within a reasonable period — normally within 30 days.",
+            "We confirm completion by email."
+          ],
+          "paragraphs": [
+            "Limited records may be retained where we are required to keep them for legal or security purposes."
+          ]
+        },
+        {
+          "title": "Disconnecting instead of deleting",
+          "paragraphs": [
+            "You can disconnect your Instagram account from Noxi at any time. After disconnection, we stop receiving and processing new data from that account.",
+            "You can also remove Noxi’s access from your Instagram or Meta account settings (Apps and websites).",
+            "Disconnecting stops new processing; to delete data that was already received, use the request process above."
+          ]
+        },
+        {
+          "title": "Data received from Meta platforms",
+          "paragraphs": [
+            "If you connected Instagram to Noxi, this page also serves as our data deletion instructions for data received through Meta’s platform.",
+            "Requests are processed for the specific Instagram professional account connected to the workspace."
+          ]
+        }
+      ],
+      "contactTitle": "Contact us",
+      "contactBody": "To request deletion or ask a question about your data, contact us at:"
+    }
+  },
   "nav": {
     "mainNav": "Main navigation",
     "overview": "Overview",
@@ -109,7 +367,7 @@
     "passwordHint": "At least 8 characters.",
     "passwordTooShort": "Password is too short; use at least 8 characters.",
     "passwordMismatch": "Passwords do not match.",
-    "acceptTerms": "I agree to the Terms of Service and Privacy Policy",
+    "acceptTerms": "I agree to the <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>",
     "termsRequired": "You must accept the terms to continue.",
     "emailTaken": "This email is already registered. Try signing in.",
     "haveAccount": "Already have an account?",

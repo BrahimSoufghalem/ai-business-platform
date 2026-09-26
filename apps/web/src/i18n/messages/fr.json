@@ -68,6 +68,266 @@
     "loadFailed": "Impossible de charger les données. Réessayez.",
     "mainNav": "Navigation principale"
   },
+  "legal": {
+    "eyebrow": "Informations légales",
+    "lastUpdated": "Dernière mise à jour",
+    "navLabel": "Documents juridiques",
+    "contactEmail": "ibrahimsoufghalm@gmail.com",
+    "nav": {
+      "privacy": "Politique de confidentialité",
+      "terms": "Conditions d’utilisation",
+      "dataDeletion": "Suppression des données"
+    },
+    "footer": {
+      "tagline": "Gestion d’entreprise et communication client.",
+      "legal": "Informations légales",
+      "contact": "Contact",
+      "rights": "Tous droits réservés."
+    },
+    "privacy": {
+      "title": "Politique de confidentialité",
+      "metaDescription": "Comment Noxi collecte, utilise, stocke et protège les informations, y compris les données des intégrations Instagram et Meta connectées.",
+      "intro": "Cette politique de confidentialité explique comment Noxi (« nous ») collecte, utilise, stocke et protège les informations lorsque vous utilisez la plateforme Noxi (le « Service »). Noxi est une plateforme SaaS destinée aux entreprises ; elle fournit des outils de gestion des produits, des stocks, des commandes, des clients et de la communication client, y compris des intégrations avec des services de messagerie tels qu’Instagram.",
+      "sections": [
+        {
+          "title": "Champ d’application",
+          "paragraphs": [
+            "Cette politique s’applique au site et à la plateforme Noxi, notamment lorsque vous créez un compte, utilisez le Service ou connectez des services tiers tels qu’Instagram.",
+            "Lorsque le Service est utilisé par une entreprise, celle-ci est responsable des données clients qu’elle collecte, et Noxi traite ces données pour son compte afin de fournir le Service."
+          ]
+        },
+        {
+          "title": "Informations que vous fournissez",
+          "paragraphs": [
+            "Lorsque vous créez un compte ou utilisez le Service, vous pouvez fournir :"
+          ],
+          "bullets": [
+            "Informations de compte, telles que votre nom, votre adresse e-mail et vos informations d’authentification.",
+            "Informations sur l’entreprise, telles que le nom de la boutique ou de l’entreprise, la langue, le fuseau horaire et la configuration (types de produits, attributs et règles métier).",
+            "Données opérationnelles que vous saisissez, telles que les produits, les types et variantes, les mouvements de stock, les commandes, les clients et les notes associées."
+          ]
+        },
+        {
+          "title": "Informations générées lors de l’utilisation du Service",
+          "bullets": [
+            "Conversations et messages : conversations clients et messages échangés via les canaux que vous connectez, avec les métadonnées associées (horodatage, statut de livraison).",
+            "Informations clients : coordonnées et identifiants de messagerie de vos clients, fournis par vous ou par les canaux connectés.",
+            "Informations techniques : journaux, diagnostics d’erreurs, métadonnées de requêtes et données similaires générées pendant le fonctionnement du Service."
+          ],
+          "paragraphs": [
+            "Nos diagnostics sont structurels : nous n’enregistrons pas de secrets tels que les jetons d’accès, les secrets d’application ou les valeurs de vérification des webhooks dans les journaux."
+          ]
+        },
+        {
+          "title": "Comptes Instagram et Meta connectés",
+          "paragraphs": [
+            "Si vous connectez un compte Instagram, vous autorisez Noxi à accéder à l’API de messagerie Instagram via la plateforme Meta. Nous recevons et stockons les identifiants de votre compte professionnel Instagram ainsi que les identifiants d’accès nécessaires à l’intégration, conservés sous forme chiffrée.",
+            "Nous traitons les données Instagram et Meta uniquement pour fournir les fonctionnalités d’intégration et de communication que vous avez demandées."
+          ]
+        },
+        {
+          "title": "Données de webhook",
+          "paragraphs": [
+            "Lorsqu’une intégration de messagerie est connectée, Noxi reçoit des événements webhook de Meta pour des événements tels que les messages entrants et les réactions aux messages. Ces événements sont traités pour acheminer les messages dans votre espace de travail et sont stockés dans vos historiques de conversation.",
+            "Les événements webhook sont vérifiés par signature et traités de manière idempotente afin d’éviter les doublons."
+          ]
+        },
+        {
+          "title": "Comment nous utilisons les informations",
+          "bullets": [
+            "Fournir, exploiter et maintenir le Service.",
+            "Assurer les fonctionnalités d’intégration de messagerie que vous activez, notamment l’acheminement des messages entrants vers le bon compte.",
+            "Prendre en charge les réponses assistées par IA et l’automatisation des flux, à partir de vos données et des règles configurées.",
+            "Assurer la sécurité, prévenir les abus et diagnostiquer les problèmes techniques.",
+            "Communiquer avec vous au sujet de votre compte et des changements importants du Service.",
+            "Respecter les obligations légales qui nous incombent."
+          ],
+          "paragraphs": ["Nous ne vendons pas vos informations personnelles."]
+        },
+        {
+          "title": "Stockage et sécurité",
+          "paragraphs": [
+            "Les informations sont stockées dans les bases de données et l’infrastructure utilisées pour exploiter le Service, avec un accès limité à ce qui est nécessaire.",
+            "Nous appliquons des mesures techniques et organisationnelles raisonnables : chiffrement des identifiants d’intégration, isolation entre entreprises (multi-tenant) et accès interne restreint.",
+            "Aucune méthode de transmission ou de stockage n’est totalement sûre, et nous ne pouvons pas garantir une sécurité absolue."
+          ]
+        },
+        {
+          "title": "Conservation des données",
+          "paragraphs": [
+            "Nous conservons les données de compte et d’entreprise aussi longtemps que votre compte est actif et que cela est nécessaire pour fournir le Service.",
+            "Les conversations et les messages sont conservés dans vos historiques jusqu’à leur suppression ou la fermeture de votre compte.",
+            "Les journaux et données de diagnostic sont conservés pendant une durée limitée, pour la sécurité et le dépannage.",
+            "En cas de demande de suppression, nous supprimons ou anonymisons les données concernées dans un délai raisonnable, sauf lorsque nous devons conserver des enregistrements limités pour respecter des obligations légales ou résoudre des litiges."
+          ]
+        },
+        {
+          "title": "Partage et prestataires",
+          "paragraphs": [
+            "Nous faisons appel à des prestataires d’infrastructure et de services (hébergement, bases de données, plateformes de messagerie) qui traitent des données pour notre compte afin d’exploiter le Service.",
+            "Lorsque vous connectez Instagram, des données sont échangées avec les plateformes Meta conformément à votre autorisation et aux conditions de Meta.",
+            "Nous ne vendons pas de données personnelles et ne les communiquons à des tiers que lorsque cela est nécessaire au fonctionnement du Service ou exigé par la loi."
+          ]
+        },
+        {
+          "title": "Données clients des entreprises",
+          "paragraphs": [
+            "Lorsque nous traitons les données de vos clients pour votre compte, il vous appartient de vous assurer que vous avez le droit de les partager avec le Service. Nous les traitons uniquement pour vous fournir le Service et conformément à cette politique."
+          ]
+        },
+        {
+          "title": "Vos choix et demandes",
+          "paragraphs": [
+            "Vous pouvez demander l’accès, la rectification ou la suppression de vos données de compte et d’entreprise en nous contactant à l’adresse ci-dessous. Les demandes de suppression sont traitées comme décrit sur notre page Suppression des données."
+          ]
+        },
+        {
+          "title": "Déconnexion d’un compte connecté",
+          "paragraphs": [
+            "Vous pouvez déconnecter un compte Instagram du Service. Après la déconnexion, nous cessons de recevoir et de traiter de nouvelles données de ce compte.",
+            "Vous pouvez également révoquer l’accès de Noxi depuis les paramètres de votre compte Instagram ou Meta. Pour supprimer des données déjà reçues, utilisez la procédure indiquée sur notre page Suppression des données."
+          ]
+        },
+        {
+          "title": "Modifications de cette politique",
+          "paragraphs": [
+            "Nous pouvons mettre à jour cette politique à mesure que le Service évolue. Nous actualisons alors la date de « Dernière mise à jour » ci-dessus et, en cas de changement important, nous vous en informons dans le Service."
+          ]
+        }
+      ],
+      "contactTitle": "Nous contacter",
+      "contactBody": "Pour toute question ou demande relative à la confidentialité :"
+    },
+    "terms": {
+      "title": "Conditions d’utilisation",
+      "metaDescription": "Les conditions qui régissent l’utilisation de Noxi, une plateforme de gestion d’entreprise et de communication client.",
+      "intro": "Les présentes Conditions d’utilisation (les « Conditions ») régissent votre accès à Noxi et son utilisation (le « Service »). En créant un compte ou en utilisant le Service, vous acceptez ces Conditions.",
+      "sections": [
+        {
+          "title": "Le Service",
+          "paragraphs": [
+            "Noxi est une plateforme de gestion d’entreprise et de communication client. Elle fournit des outils de gestion des produits, des stocks, des commandes, des clients et de la communication client, y compris des intégrations de messagerie telles qu’Instagram et des fonctionnalités de communication assistée par IA.",
+            "Vos données d’entreprise restent les vôtres : la plateforme les stocke et les organise, et les fonctionnalités d’IA s’appuient sur vos données et sur les règles que vous configurez."
+          ]
+        },
+        {
+          "title": "Comptes et accès",
+          "paragraphs": [
+            "Vous devez fournir des informations de compte exactes et protéger vos identifiants. Vous êtes responsable de l’activité effectuée via votre compte et des accès que vous accordez aux membres de votre équipe, et vous devez être autorisé à agir au nom de l’entreprise que vous enregistrez."
+          ]
+        },
+        {
+          "title": "Utilisation acceptable",
+          "bullets": [
+            "Ne pas utiliser le Service pour envoyer des messages indésirables ou des communications illégales, trompeuses ou abusives.",
+            "Respecter les conditions et politiques des plateformes connectées, notamment les politiques de Meta relatives à la plateforme et à la messagerie.",
+            "Ne pas tenter de contourner les mesures de sécurité, l’isolation entre locataires ou les limites d’utilisation, et ne pas perturber ni décompiler le Service.",
+            "Ne pas stocker ni envoyer de contenu illégal ou portant atteinte aux droits de tiers."
+          ]
+        },
+        {
+          "title": "Vos données d’entreprise et clients",
+          "paragraphs": [
+            "Vous êtes responsable des données que vous et votre équipe stockez dans le Service, y compris les données clients, et de la manière dont vous communiquez avec vos clients.",
+            "Vous devez disposer d’une base légale pour contacter vos clients via les canaux connectés.",
+            "Nous traitons vos données comme décrit dans la Politique de confidentialité."
+          ]
+        },
+        {
+          "title": "Services tiers connectés",
+          "paragraphs": [
+            "Le Service peut se connecter à des services tiers tels qu’Instagram et d’autres plateformes Meta. Votre utilisation de ces services est régie par leurs propres conditions et politiques.",
+            "Les fonctionnalités connectées dépendent d’API et d’autorisations tierces. Leur disponibilité peut évoluer et nous ne sommes pas responsables des interruptions ou décisions de ces services tiers.",
+            "Il vous appartient de maintenir vos comptes connectés et les autorisations accordées."
+          ]
+        },
+        {
+          "title": "Disponibilité du Service",
+          "paragraphs": [
+            "Nous travaillons à maintenir le Service disponible et fiable, mais nous ne garantissons pas un fonctionnement ininterrompu ou exempt d’erreurs, en particulier pendant l’évolution du produit. Des opérations de maintenance peuvent avoir lieu et des fonctionnalités peuvent évoluer ou être retirées."
+          ]
+        },
+        {
+          "title": "Modifications du Service et des Conditions",
+          "paragraphs": [
+            "Nous pouvons mettre à jour le Service et ces Conditions. Les changements importants seront communiqués dans le Service ou par e-mail. Si vous continuez à utiliser le Service après leur entrée en vigueur, vous acceptez les Conditions mises à jour."
+          ]
+        },
+        {
+          "title": "Données et suppression",
+          "paragraphs": [
+            "Vous pouvez demander la suppression de votre compte et de vos données à tout moment, comme décrit sur notre page Suppression des données.",
+            "La manière dont nous traitons les données, y compris leur conservation et leur suppression, est décrite dans notre Politique de confidentialité."
+          ]
+        },
+        {
+          "title": "Suspension et résiliation",
+          "paragraphs": [
+            "Nous pouvons suspendre ou résilier l’accès en cas de violation de ces Conditions ou si cela est nécessaire pour des raisons de sécurité ou légales. Vous pouvez cesser d’utiliser le Service à tout moment et demander la suppression de vos données."
+          ]
+        }
+      ],
+      "contactTitle": "Nous contacter",
+      "contactBody": "Des questions sur ces Conditions ? Contactez-nous :"
+    },
+    "dataDeletion": {
+      "title": "Suppression des données",
+      "metaDescription": "Comment demander la suppression des données de votre compte Noxi et de l’intégration Instagram connectée.",
+      "intro": "Cette page explique comment demander la suppression des données associées à votre compte Noxi, y compris les données reçues via une intégration Instagram connectée. Noxi est une plateforme de gestion d’entreprise et de communication client.",
+      "sections": [
+        {
+          "title": "Ce que vous pouvez demander à supprimer",
+          "paragraphs": ["Vous pouvez demander la suppression :"],
+          "bullets": [
+            "de votre compte Noxi et de vos données d’authentification ;",
+            "de vos données d’entreprise ou de boutique, y compris les produits, stocks, commandes et clients stockés dans le Service ;",
+            "des données de l’intégration Instagram connectée, y compris les identifiants de compte stockés et les identifiants d’accès utilisés pour l’intégration ;",
+            "des conversations et messages reçus via les canaux connectés, le cas échéant, y compris les données reçues par webhooks Instagram."
+          ]
+        },
+        {
+          "title": "Comment faire une demande",
+          "paragraphs": [
+            "Envoyez votre demande depuis l’adresse e-mail associée à votre compte Noxi :"
+          ],
+          "bullets": [
+            "Écrivez à ibrahimsoufghalm@gmail.com avec l’objet « Demande de suppression de données ».",
+            "Précisez ce qui doit être supprimé, par exemple « mon compte et toutes les données de la boutique » ou « l’intégration Instagram connectée à la boutique X ».",
+            "Si votre demande concerne une intégration Instagram, indiquez le nom de la boutique ou le nom d’utilisateur Instagram connecté afin que nous identifiions les bons enregistrements.",
+            "Nous pouvons vous demander de confirmer que vous contrôlez le compte avant de procéder."
+          ]
+        },
+        {
+          "title": "Étapes suivantes",
+          "bullets": [
+            "Nous confirmons la réception de votre demande et vérifions la propriété du compte.",
+            "Nous supprimons les données demandées, ou les anonymisons lorsque la suppression n’est pas techniquement possible (par exemple dans les sauvegardes), dans un délai raisonnable — généralement sous 30 jours.",
+            "Nous confirmons la réalisation par e-mail."
+          ],
+          "paragraphs": [
+            "Des enregistrements limités peuvent être conservés lorsque la loi nous oblige à les conserver ou pour des raisons de sécurité."
+          ]
+        },
+        {
+          "title": "Déconnecter plutôt que supprimer",
+          "paragraphs": [
+            "Vous pouvez déconnecter votre compte Instagram de Noxi à tout moment. Après la déconnexion, nous cessons de recevoir et de traiter de nouvelles données de ce compte.",
+            "Vous pouvez également retirer l’accès de Noxi depuis les paramètres de votre compte Instagram ou Meta (Applications et sites web).",
+            "La déconnexion arrête tout nouveau traitement ; pour supprimer des données déjà reçues, utilisez la procédure ci-dessus."
+          ]
+        },
+        {
+          "title": "Données reçues des plateformes Meta",
+          "paragraphs": [
+            "Si vous avez connecté Instagram à Noxi, cette page constitue également nos instructions de suppression des données reçues via la plateforme Meta.",
+            "Les demandes sont traitées pour le compte professionnel Instagram spécifiquement connecté à l’espace de travail."
+          ]
+        }
+      ],
+      "contactTitle": "Nous contacter",
+      "contactBody": "Pour demander une suppression ou poser une question sur vos données :"
+    }
+  },
   "nav": {
     "mainNav": "Navigation principale",
     "overview": "Vue d’ensemble",
@@ -109,7 +369,7 @@
     "passwordHint": "8 caractères minimum.",
     "passwordTooShort": "Mot de passe trop court ; 8 caractères minimum.",
     "passwordMismatch": "Les mots de passe ne correspondent pas.",
-    "acceptTerms": "J’accepte les conditions d’utilisation et la politique de confidentialité",
+    "acceptTerms": "J’accepte les <terms>Conditions d’utilisation</terms> et la <privacy>Politique de confidentialité</privacy>",
     "termsRequired": "Vous devez accepter les conditions pour continuer.",
     "emailTaken": "Cet e-mail est déjà enregistré. Essayez de vous connecter.",
     "haveAccount": "Déjà un compte ?",

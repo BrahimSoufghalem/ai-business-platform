@@ -5,6 +5,7 @@ import { routing, localeDirection, type Locale } from './i18n/routing';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
+// Auth screens and legal pages are reachable without a session.
 const PUBLIC_SEGMENTS = new Set([
   'login',
   'signup',
@@ -13,6 +14,9 @@ const PUBLIC_SEGMENTS = new Set([
   'confirm-email',
   'auth-error',
   'auth',
+  'privacy',
+  'terms',
+  'data-deletion',
 ]);
 
 function parsePath(pathname: string): { locale: Locale; segments: string[] } {

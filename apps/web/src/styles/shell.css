@@ -34,20 +34,6 @@
   text-decoration: none;
 }
 
-.sidebar__brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: var(--accent-contrast);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-sm);
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
 .sidebar__nav {
   flex: 1;
   overflow-y: auto;

@@ -13,6 +13,7 @@ import { Select } from '../../../components/ui/select';
 import { Icon } from '../../../components/icons';
 import { ErrorState } from '../../../components/ui/error-state';
 import { LocaleSwitcher } from '../../../components/shell/locale-switcher';
+import { BrandLockup } from '../../../components/brand';
 
 const ROLE_TONES: Record<string, string> = { owner: 'owner', manager: 'manager', agent: 'agent' };
 
@@ -92,8 +93,8 @@ export function StorePicker({
           width: '100%',
         }}
       >
-        <p className="auth-card__brand" translate="no" style={{ margin: 0 }}>
-          AI Business Platform
+        <p className="auth-card__brand" style={{ margin: 0 }}>
+          <BrandLockup />
         </p>
         <Suspense>
           <LocaleSwitcher />

@@ -6,7 +6,7 @@ export default function GlobalNotFound() {
       <body style={{ fontFamily: 'system-ui, sans-serif', padding: 48, textAlign: 'center' }}>
         <h1>404</h1>
         <p>
-          <Link href="/">AI Business Platform</Link>
+          <Link href="/">Noxi</Link>
         </p>
       </body>
     </html>

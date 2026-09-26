@@ -11,6 +11,7 @@ import { FormField } from '../../../../components/ui/form-field';
 import { Input } from '../../../../components/ui/input';
 import { PasswordInput } from '../../../../components/ui/password-input';
 import { InlineAlert } from '../../../../components/ui/alert';
+import { BrandLockup } from '../../../../components/brand';
 
 export default function SignupPage() {
   const t = useTranslations('auth');
@@ -71,8 +72,8 @@ export default function SignupPage() {
 
   return (
     <div className="auth-card">
-      <p className="auth-card__brand" translate="no">
-        AI Business Platform
+      <p className="auth-card__brand">
+        <BrandLockup />
       </p>
       <h1 className="auth-card__title">{t('signupTitle')}</h1>
       <p className="auth-card__subtitle">{t('signupSubtitle')}</p>
@@ -119,7 +120,10 @@ export default function SignupPage() {
         </FormField>
         <div>
           <Checkbox
-            label={t('acceptTerms')}
+            label={t.rich('acceptTerms', {
+              terms: (chunks) => <Link href="/terms">{chunks}</Link>,
+              privacy: (chunks) => <Link href="/privacy">{chunks}</Link>,
+            })}
             checked={acceptedTerms}
             onChange={(e) => setAcceptedTerms(e.target.checked)}
             aria-invalid={errors.terms ? true : undefined}

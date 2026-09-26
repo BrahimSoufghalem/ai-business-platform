@@ -10,6 +10,7 @@ import '../../styles/base.css';
 import '../../styles/components.css';
 import '../../styles/shell.css';
 import '../../styles/pages.css';
+import '../../styles/legal.css';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -25,8 +26,23 @@ const plexArabic = IBM_Plex_Sans_Arabic({
 });
 
 export const metadata: Metadata = {
-  title: { default: 'AI Business Platform', template: '%s — AI Business Platform' },
-  description: 'Operations-first commerce platform with a grounded AI agent.',
+  title: { default: 'Noxi', template: '%s — Noxi' },
+  description:
+    'Noxi is a business management and customer communication platform for managing products, inventory, orders, customers, and conversations across messaging channels.',
+  applicationName: 'Noxi',
+  openGraph: {
+    type: 'website',
+    siteName: 'Noxi',
+    title: 'Noxi — Business management and customer communication',
+    description:
+      'Manage products, inventory, orders, customers, and conversations in one platform, with Instagram messaging integration and AI-assisted replies grounded in your data.',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Noxi — Business management and customer communication',
+    description:
+      'Manage products, inventory, orders, customers, and conversations in one platform, with Instagram messaging integration and AI-assisted replies grounded in your data.',
+  },
 };
 
 export function generateStaticParams() {

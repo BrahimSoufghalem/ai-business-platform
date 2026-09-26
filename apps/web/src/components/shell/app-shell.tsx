@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '../../i18n/navigation';
 import { navItemsForRole } from '../../lib/nav';
+import { BrandLockup } from '../brand';
 import { Icon } from '../icons';
 import { IconButton } from '../ui/icon-button';
 import { useStore } from '../providers';
@@ -71,10 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </a>
       <aside className="sidebar" aria-label={t('sidebar')}>
         <Link href="/overview" className="sidebar__brand">
-          <span className="sidebar__brand-mark" aria-hidden="true">
-            S
-          </span>
-          <span translate="no">AI Business Platform</span>
+          <BrandLockup />
         </Link>
         <NavLinks />
       </aside>
@@ -109,7 +107,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} />
           <div className="drawer" role="dialog" aria-modal="true" aria-label={t('menu')}>
             <div className="drawer__header">
-              <strong translate="no">AI Business Platform</strong>
+              <BrandLockup />
               <IconButton icon="close" label={t('close')} onClick={() => setDrawerOpen(false)} />
             </div>
             <NavLinks onNavigate={() => setDrawerOpen(false)} />

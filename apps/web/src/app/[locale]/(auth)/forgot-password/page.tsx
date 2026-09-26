@@ -8,6 +8,7 @@ import { Button } from '../../../../components/ui/button';
 import { FormField } from '../../../../components/ui/form-field';
 import { Input } from '../../../../components/ui/input';
 import { InlineAlert } from '../../../../components/ui/alert';
+import { BrandLockup } from '../../../../components/brand';
 
 export default function ForgotPasswordPage() {
   const t = useTranslations('auth');
@@ -42,8 +43,8 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="auth-card">
-      <p className="auth-card__brand" translate="no">
-        AI Business Platform
+      <p className="auth-card__brand">
+        <BrandLockup />
       </p>
       <h1 className="auth-card__title">{t('forgotTitle')}</h1>
       <p className="auth-card__subtitle">{t('forgotSubtitle')}</p>
