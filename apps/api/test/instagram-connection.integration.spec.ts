@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { createDatabaseClient } from '@ai-business/db';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DatabaseService } from '../src/database/database.service.js';
@@ -375,7 +375,7 @@ describeWithDatabase('Instagram tenant connection', () => {
 
     await expect(
       connections.get(ownerIdentity, 'instagram-get-deleted', tenantA),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).resolves.toBeNull();
     const [stored] = await admin<{ itemCount: number }[]>`
       select count(*)::int as "itemCount"
       from instagram_accounts

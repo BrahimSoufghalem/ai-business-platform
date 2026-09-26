@@ -8,12 +8,17 @@ import {
   Inject,
   Param,
   Put,
+  Res,
 } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
 import type { VerifiedIdentity } from '@ai-business/auth';
 import { CorrelationId, CurrentIdentity } from '../auth/request-context.decorator.js';
 import { tenantIdSchema } from '../tenants/tenant.schemas.js';
 import { connectInstagramAccountSchema } from './instagram-connection.schemas.js';
-import { InstagramConnectionService } from './instagram-connection.service.js';
+import {
+  InstagramConnectionService,
+  type InstagramConnectionView,
+} from './instagram-connection.service.js';
 
 function parseTenantId(value: string): string {
   const parsed = tenantIdSchema.safeParse(value);
@@ -43,12 +48,18 @@ export class InstagramConnectionController {
   ) {}
 
   @Get()
-  get(
+  async get(
     @CurrentIdentity() identity: VerifiedIdentity,
     @CorrelationId() correlationId: string,
     @Param('tenantId') tenantId: string,
-  ) {
-    return this.connections.get(identity, correlationId, parseTenantId(tenantId));
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<InstagramConnectionView | undefined> {
+    const connection = await this.connections.get(identity, correlationId, parseTenantId(tenantId));
+    if (!connection) {
+      reply.status(204);
+      return undefined;
+    }
+    return connection;
   }
 
   @Put()

@@ -91,7 +91,7 @@ export class InstagramConnectionService {
     identity: VerifiedIdentity,
     correlationId: string,
     candidateTenantId: string,
-  ): Promise<InstagramConnectionView> {
+  ): Promise<InstagramConnectionView | null> {
     const context = createCandidateTenantContext(identity, candidateTenantId, correlationId);
     return withTenantTransaction(this.database.client, context, async (transaction) => {
       await authorizeTenantPermission(transaction, context.tenantId, 'tenant:manage');
@@ -105,7 +105,7 @@ export class InstagramConnectionService {
         where tenant_id = ${context.tenantId}
         limit 1
       `;
-      if (!connection) throw new NotFoundException('Instagram connection not found.');
+      if (!connection) return null;
       return toView(connection);
     });
   }
