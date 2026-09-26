@@ -171,6 +171,71 @@ describe('InstagramLiveAdapter', () => {
     ]);
   });
 
+  it('normalizes messages delivered through entry changes with string timestamps', async () => {
+    const result = await adapter().normalizeInbound(
+      {
+        object: 'instagram',
+        entry: [
+          {
+            id: '0',
+            time: 1_790_000_000,
+            changes: [
+              {
+                field: 'messages',
+                value: {
+                  sender: { id: '77001122' },
+                  recipient: { id: accountId },
+                  timestamp: '1790000000',
+                  message: { mid: 'ig-change-1', text: 'أين طلبي؟' },
+                },
+              },
+              {
+                field: 'messages',
+                value: {
+                  sender: { id: '77001122' },
+                  recipient: { id: accountId },
+                  timestamp: '1790000001',
+                  message: { mid: 'ig-change-echo', text: 'echo', is_echo: true },
+                },
+              },
+              {
+                field: 'comments',
+                value: { id: 'comment-1', text: 'not a message' },
+              },
+            ],
+          },
+          {
+            id: '0',
+            changes: [
+              {
+                field: 'messages',
+                value: {
+                  sender: { id: '4455' },
+                  recipient: { id: '17841499999999999' },
+                  timestamp: '1790000002',
+                  message: { mid: 'other-account-change', text: 'ignore' },
+                },
+              },
+            ],
+          },
+        ],
+      },
+      tenantId,
+    );
+
+    expect(result).toEqual([
+      {
+        tenantId,
+        channel: 'instagram',
+        externalMessageId: 'ig-change-1',
+        externalConversationId: '77001122',
+        senderId: '77001122',
+        receivedAt: new Date(1_790_000_000_000).toISOString(),
+        text: 'أين طلبي؟',
+      },
+    ]);
+  });
+
   it('sends a text reply through the versioned Instagram endpoint', async () => {
     const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify({ recipient_id: '99112233', message_id: 'meta-message-1' }), {

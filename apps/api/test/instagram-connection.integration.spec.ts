@@ -225,6 +225,67 @@ describeWithDatabase('Instagram tenant connection', () => {
     expect(counts).toEqual({ customers: 1, conversations: 1, messages: 1, jobs: 1 });
   });
 
+  it('ingests messages delivered through entry changes and recipient account matching', async () => {
+    await connections.connect(ownerIdentity, 'instagram-connect-changes', tenantA, {
+      accountId: '17841400000000006',
+      accessToken,
+    });
+
+    await expect(
+      webhooks.accept(
+        {
+          object: 'instagram',
+          entry: [
+            {
+              id: '0',
+              time: 1_790_000_000,
+              changes: [
+                {
+                  field: 'messages',
+                  value: {
+                    sender: { id: '66554433' },
+                    recipient: { id: '17841400000000006' },
+                    timestamp: '1790000000',
+                    message: { mid: 'ig-change-mid-1', text: 'مرحبا' },
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        'instagram-ingest-changes',
+      ),
+    ).resolves.toEqual({
+      received: true,
+      acceptedMessages: 1,
+      replayedMessages: 0,
+      queuedJobs: 1,
+    });
+
+    const [counts] = await admin<
+      {
+        customers: number;
+        messages: number;
+        jobs: number;
+      }[]
+    >`
+      select
+        (
+          select count(*)::int from customer_contacts
+          where tenant_id = ${tenantA} and normalized_value = 'igsid:66554433'
+        ) as customers,
+        (
+          select count(*)::int from messages
+          where tenant_id = ${tenantA} and external_id = 'ig-change-mid-1'
+        ) as messages,
+        (
+          select count(*)::int from message_processing_jobs
+          where tenant_id = ${tenantA}
+        ) as jobs
+    `;
+    expect(counts).toEqual({ customers: 1, messages: 1, jobs: 1 });
+  });
+
   it('ignores signed events for an account that is not connected', async () => {
     await expect(
       webhooks.accept(

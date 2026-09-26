@@ -162,10 +162,48 @@ function safeIdentifier(value: unknown): string | null {
   return normalized.length > 0 && normalized.length <= 200 ? normalized : null;
 }
 
-function safeTimestamp(value: unknown): string | null {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
-  const date = new Date(value);
+function timestampMilliseconds(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) return value;
+  if (typeof value === 'string' && /^[0-9]{9,14}$/u.test(value.trim())) {
+    const numeric = Number(value.trim());
+    return Number.isSafeInteger(numeric) && numeric > 0 ? numeric : null;
+  }
+  return null;
+}
+
+function safeTimestamp(value: unknown, fallback?: unknown): string | null {
+  const numeric = timestampMilliseconds(value) ?? timestampMilliseconds(fallback);
+  if (numeric === null) return null;
+  // Meta sends Instagram timestamps as 10-digit seconds or 13-digit milliseconds.
+  const milliseconds = numeric < 100_000_000_000 ? numeric * 1_000 : numeric;
+  const date = new Date(milliseconds);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function inboundMessageEvents(entry: Record<string, unknown>): Record<string, unknown>[] {
+  const events: Record<string, unknown>[] = [];
+  const messaging = Array.isArray(entry.messaging) ? entry.messaging : [];
+  if (messaging.length > MAX_EVENTS_PER_ENTRY) {
+    throw new InstagramPayloadError('Instagram webhook contains too many events.');
+  }
+  for (const value of messaging) {
+    const event = record(value);
+    if (event) events.push(event);
+  }
+  const changes = Array.isArray(entry.changes) ? entry.changes : [];
+  if (changes.length > MAX_EVENTS_PER_ENTRY) {
+    throw new InstagramPayloadError('Instagram webhook contains too many events.');
+  }
+  for (const value of changes) {
+    const change = record(value);
+    if (!change || change.field !== 'messages') continue;
+    const event = record(change.value);
+    if (event) events.push(event);
+  }
+  if (events.length > MAX_EVENTS_PER_ENTRY) {
+    throw new InstagramPayloadError('Instagram webhook contains too many events.');
+  }
+  return events;
 }
 
 function safeMediaUrl(value: unknown): string | null {
@@ -275,19 +313,28 @@ export class InstagramLiveAdapter implements InstagramAdapter {
     const normalized: InboundMessageEnvelope[] = [];
     for (const entryValue of root.entry) {
       const entry = record(entryValue);
-      if (!entry || safeIdentifier(entry.id) !== this.accountId) continue;
-      if (!Array.isArray(entry.messaging) || entry.messaging.length > MAX_EVENTS_PER_ENTRY) {
-        if (Array.isArray(entry.messaging)) {
-          throw new InstagramPayloadError('Instagram webhook contains too many events.');
-        }
-        continue;
-      }
+      if (!entry) continue;
+      const events = inboundMessageEvents(entry);
 
-      for (const eventValue of entry.messaging) {
-        const event = record(eventValue);
-        const sender = record(event?.sender);
-        const message = record(event?.message);
-        if (!event || !sender || !message) continue;
+      // Real DM deliveries arrive in entry.messaging[], while other deliveries
+      // and the documented dashboard test use entry.changes[] with field
+      // "messages" and the event object under value. Both are normalized here.
+      const entryMatchesAccount = safeIdentifier(entry.id) === this.accountId;
+      const recipientMatchesAccount = events.some(
+        (event) => safeIdentifier(record(event.recipient)?.id) === this.accountId,
+      );
+      if (!entryMatchesAccount && !recipientMatchesAccount) continue;
+
+      for (const event of events) {
+        if (
+          !entryMatchesAccount &&
+          safeIdentifier(record(event.recipient)?.id) !== this.accountId
+        ) {
+          continue;
+        }
+        const sender = record(event.sender);
+        const message = record(event.message);
+        if (!sender || !message) continue;
         if (
           message.is_echo === true ||
           message.is_deleted === true ||
@@ -297,7 +344,7 @@ export class InstagramLiveAdapter implements InstagramAdapter {
 
         const senderId = safeIdentifier(sender.id);
         const messageId = safeIdentifier(message.mid);
-        const receivedAt = safeTimestamp(event.timestamp);
+        const receivedAt = safeTimestamp(event.timestamp, entry.time);
         if (!senderId || !messageId || !receivedAt) continue;
 
         const text =

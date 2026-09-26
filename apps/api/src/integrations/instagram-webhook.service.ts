@@ -83,12 +83,35 @@ function accountDiagnostic(accountId: string): {
 function entryShape(value: unknown): {
   readonly messagingEvents: number;
   readonly changeEvents: number;
+  readonly messageChanges: number;
 } {
   const entry = record(value);
+  const changes = Array.isArray(entry?.changes) ? entry.changes : [];
   return {
     messagingEvents: Array.isArray(entry?.messaging) ? entry.messaging.length : 0,
-    changeEvents: Array.isArray(entry?.changes) ? entry.changes.length : 0,
+    changeEvents: changes.length,
+    messageChanges: changes.filter((changeValue) => record(changeValue)?.field === 'messages')
+      .length,
   };
+}
+
+function accountCandidates(entryId: string, entryValue: unknown): string[] {
+  const candidates = [entryId];
+  const entry = record(entryValue);
+  const pushRecipient = (eventValue: unknown) => {
+    const recipient = record(record(eventValue)?.recipient);
+    if (typeof recipient?.id === 'string' && /^[0-9]{1,80}$/u.test(recipient.id)) {
+      candidates.push(recipient.id);
+    }
+  };
+  if (Array.isArray(entry?.messaging)) entry.messaging.forEach(pushRecipient);
+  if (Array.isArray(entry?.changes)) {
+    for (const changeValue of entry.changes) {
+      const change = record(changeValue);
+      if (change?.field === 'messages') pushRecipient(change.value);
+    }
+  }
+  return [...new Set(candidates)];
 }
 
 function isUniqueViolation(error: unknown): boolean {
@@ -122,16 +145,25 @@ export class InstagramWebhookService {
     const entries = webhookEntries(payload);
     for (const entry of entries) {
       const diagnostic = accountDiagnostic(entry.id);
-      const [mapping] = await this.database.client<{ tenantId: TenantId }[]>`
-        select app_resolve_instagram_tenant(${entry.id})::text as "tenantId"
-      `;
-      if (!mapping?.tenantId) {
+      const candidates = accountCandidates(entry.id, entry.value);
+      let resolved: { readonly tenantId: TenantId; readonly accountId: string } | null = null;
+      for (const candidate of candidates) {
+        const [mapping] = await this.database.client<{ tenantId: TenantId }[]>`
+          select app_resolve_instagram_tenant(${candidate})::text as "tenantId"
+        `;
+        if (mapping?.tenantId) {
+          resolved = { tenantId: mapping.tenantId, accountId: candidate };
+          break;
+        }
+      }
+      if (!resolved) {
         this.logger.warn(
           JSON.stringify({
             event: 'instagram_webhook_entry_ignored',
             correlationId,
             reason: 'no_active_integration',
             ...diagnostic,
+            candidateCount: candidates.length,
             ...entryShape(entry.value),
           }),
         );
@@ -140,12 +172,12 @@ export class InstagramWebhookService {
 
       const adapter = new InstagramLiveAdapter({
         appSecret: appSecret(),
-        accountId: entry.id,
+        accountId: resolved.accountId,
       });
       try {
         const normalized = await adapter.normalizeInbound(
           { object: 'instagram', entry: [entry.value] },
-          mapping.tenantId,
+          resolved.tenantId,
         );
         for (const message of normalized) {
           const content = message.text ?? '[Instagram attachment]';
@@ -159,7 +191,7 @@ export class InstagramWebhookService {
               replayed,
               job_enqueued as "jobEnqueued"
             from app_ingest_instagram_message(
-              ${entry.id},
+              ${resolved.accountId},
               ${message.externalMessageId},
               ${message.externalConversationId},
               ${message.senderId},
@@ -187,6 +219,7 @@ export class InstagramWebhookService {
               event: 'instagram_webhook_entry_ignored',
               correlationId,
               reason: 'no_supported_messages',
+              resolvedVia: resolved.accountId === entry.id ? 'entry_id' : 'recipient_id',
               ...diagnostic,
               ...entryShape(entry.value),
             }),
