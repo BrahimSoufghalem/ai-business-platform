@@ -8,6 +8,16 @@ export interface ApiApplicationOptions {
   readonly enableShutdownHooks?: boolean;
 }
 
+const CORS_METHODS = ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
+const CORS_HEADERS = ['Authorization', 'Content-Type', 'X-Correlation-Id'] as const;
+
+function webOrigins(): string[] {
+  const configured = process.env.WEB_ORIGIN?.split(',')
+    .map((origin) => origin.trim().replace(/\/+$/u, ''))
+    .filter(Boolean);
+  return configured && configured.length > 0 ? configured : ['http://localhost:3000'];
+}
+
 export async function createApplication(
   options: ApiApplicationOptions = {},
 ): Promise<NestFastifyApplication> {
@@ -21,9 +31,11 @@ export async function createApplication(
   registerInstagramWebhookSecurity(adapter.getInstance());
   app.setGlobalPrefix('api');
   app.enableCors({
-    origin: process.env.WEB_ORIGIN?.split(',').map((origin) => origin.trim()) ?? [
-      'http://localhost:3000',
-    ],
+    origin: webOrigins(),
+    methods: [...CORS_METHODS],
+    allowedHeaders: [...CORS_HEADERS],
+    exposedHeaders: ['X-Correlation-Id'],
+    maxAge: 86_400,
     credentials: false,
   });
   if (options.enableShutdownHooks !== false) app.enableShutdownHooks();
