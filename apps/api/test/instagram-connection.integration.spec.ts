@@ -32,6 +32,7 @@ describeWithDatabase('Instagram tenant connection', () => {
   let connections: InstagramConnectionService;
   let webhooks: InstagramWebhookService;
   const subscribedAccounts: string[] = [];
+  let professionalAccountId = '17841400000009999';
   const previousEnvironment: Record<string, string | undefined> = {};
 
   beforeAll(async () => {
@@ -69,7 +70,7 @@ describeWithDatabase('Instagram tenant connection', () => {
     database = new DatabaseService();
     connections = new InstagramConnectionService(
       database,
-      async ({ accountId }) => ({ accountId, username: 'test-account' }),
+      async ({ accountId }) => ({ accountId, username: 'test-account', professionalAccountId }),
       async ({ accountId }) => {
         subscribedAccounts.push(accountId);
         return { accountId, subscribedFields: ['messages'] };
@@ -79,6 +80,7 @@ describeWithDatabase('Instagram tenant connection', () => {
   });
 
   beforeEach(async () => {
+    professionalAccountId = '17841400000009999';
     await admin`delete from message_processing_jobs where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from messages where tenant_id in (${tenantA}, ${tenantB})`;
     await admin`delete from conversation_transitions where tenant_id in (${tenantA}, ${tenantB})`;
@@ -123,6 +125,7 @@ describeWithDatabase('Instagram tenant connection', () => {
         ciphertext: string;
         iv: string;
         authTag: string;
+        professionalAccountId: string | null;
         metadata: Record<string, unknown>;
       }[]
     >`
@@ -130,6 +133,7 @@ describeWithDatabase('Instagram tenant connection', () => {
         account.access_token_ciphertext as ciphertext,
         account.access_token_iv as iv,
         account.access_token_auth_tag as "authTag",
+        account.instagram_professional_account_id as "professionalAccountId",
         audit.metadata
       from instagram_accounts as account
       join audit_events as audit
@@ -145,6 +149,7 @@ describeWithDatabase('Instagram tenant connection', () => {
       status: 'active',
     });
     expect(view).not.toHaveProperty('accessToken');
+    expect(stored?.professionalAccountId).toBe('17841400000009999');
     expect(stored?.ciphertext).not.toContain(accessToken);
     expect(JSON.stringify(stored?.metadata)).not.toContain(accessToken);
     expect(stored?.iv).toBeTruthy();
@@ -169,10 +174,33 @@ describeWithDatabase('Instagram tenant connection', () => {
     expect(audit?.metadata).toMatchObject({ subscribedFields: ['messages'] });
   });
 
+  it('updates the professional account ID when the connected account is re-saved', async () => {
+    await connections.connect(ownerIdentity, 'instagram-connect-professional-refresh-1', tenantA, {
+      accountId: '17841400000000011',
+      accessToken,
+    });
+    professionalAccountId = '17841400000008888';
+    await connections.connect(ownerIdentity, 'instagram-connect-professional-refresh-2', tenantA, {
+      accountId: '17841400000000011',
+      accessToken,
+    });
+
+    const rows = await admin<{ accountId: string; professionalAccountId: string | null }[]>`
+      select
+        instagram_account_id as "accountId",
+        instagram_professional_account_id as "professionalAccountId"
+      from instagram_accounts
+      where tenant_id = ${tenantA}
+    `;
+    expect(rows).toEqual([
+      { accountId: '17841400000000011', professionalAccountId: '17841400000008888' },
+    ]);
+  });
+
   it('rejects a connection when Meta refuses the webhook subscription', async () => {
     const refusing = new InstagramConnectionService(
       database,
-      async ({ accountId }) => ({ accountId, username: 'test-account' }),
+      async ({ accountId }) => ({ accountId, username: 'test-account', professionalAccountId }),
       async () => {
         throw new InstagramSubscriptionError(401, 190, 'invalid_credentials');
       },
@@ -202,6 +230,21 @@ describeWithDatabase('Instagram tenant connection', () => {
     await expect(
       connections.connect(ownerIdentity, 'instagram-connect-unique-b', tenantB, {
         accountId: '17841400000000001',
+        accessToken: `${accessToken}-other`,
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects a second tenant claiming the same professional account', async () => {
+    professionalAccountId = '17841400000006666';
+    await connections.connect(ownerIdentity, 'instagram-connect-professional-uq-a', tenantA, {
+      accountId: '17841400000000041',
+      accessToken,
+    });
+
+    await expect(
+      connections.connect(ownerIdentity, 'instagram-connect-professional-uq-b', tenantB, {
+        accountId: '17841400000000042',
         accessToken: `${accessToken}-other`,
       }),
     ).rejects.toBeInstanceOf(ConflictException);
@@ -270,6 +313,54 @@ describeWithDatabase('Instagram tenant connection', () => {
         ) as jobs
     `;
     expect(counts).toEqual({ customers: 1, conversations: 1, messages: 1, jobs: 1 });
+  });
+
+  it('resolves a webhook that identifies the account by its professional account ID', async () => {
+    professionalAccountId = '17841400000007777';
+    await connections.connect(ownerIdentity, 'instagram-connect-professional-webhook', tenantA, {
+      accountId: '17841400000000051',
+      accessToken,
+    });
+
+    await expect(
+      webhooks.accept(
+        {
+          object: 'instagram',
+          entry: [
+            {
+              id: '17841400000007777',
+              messaging: [
+                {
+                  sender: { id: '88776655' },
+                  recipient: { id: '17841400000007777' },
+                  timestamp: 1_790_000_000_000,
+                  message: { mid: 'ig-professional-mid-1', text: 'مرحبا' },
+                },
+              ],
+            },
+          ],
+        },
+        'instagram-ingest-professional',
+      ),
+    ).resolves.toEqual({
+      received: true,
+      acceptedMessages: 1,
+      replayedMessages: 0,
+      queuedJobs: 1,
+    });
+
+    const [counts] = await admin<{ messages: number; jobs: number }[]>`
+      select
+        (
+          select count(*)::int from messages
+          where tenant_id = ${tenantA} and external_id = 'ig-professional-mid-1'
+        ) as messages,
+        (
+          select count(*)::int from message_processing_jobs
+          where tenant_id = ${tenantA}
+        ) as jobs
+    `;
+    expect(counts).toEqual({ messages: 1, jobs: 1 });
   });
 
   it('ingests messages delivered through entry changes and recipient account matching', async () => {

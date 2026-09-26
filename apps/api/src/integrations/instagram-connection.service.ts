@@ -73,7 +73,11 @@ function credentialVault(): InstagramCredentialVault {
 
 export type InstagramCredentialValidator = (
   configuration: InstagramCredentialValidationConfiguration,
-) => Promise<{ readonly accountId: string; readonly username: string | null }>;
+) => Promise<{
+  readonly accountId: string;
+  readonly username: string | null;
+  readonly professionalAccountId: string;
+}>;
 
 export const INSTAGRAM_CREDENTIAL_VALIDATOR = Symbol('INSTAGRAM_CREDENTIAL_VALIDATOR');
 
@@ -134,8 +138,13 @@ export class InstagramConnectionService {
     await withTenantTransaction(this.database.client, context, async (transaction) => {
       await authorizeTenantPermission(transaction, context.tenantId, 'tenant:manage');
     });
+    let validation: {
+      readonly accountId: string;
+      readonly username: string | null;
+      readonly professionalAccountId: string;
+    };
     try {
-      await this.validateCredentials({
+      validation = await this.validateCredentials({
         accountId: input.accountId,
         accessToken: input.accessToken,
       });
@@ -203,16 +212,19 @@ export class InstagramConnectionService {
         );
         const [connection] = await transaction<InstagramAccountRow[]>`
           insert into instagram_accounts (
-            tenant_id, instagram_account_id, access_token_ciphertext,
+            tenant_id, instagram_account_id, instagram_professional_account_id,
+            access_token_ciphertext,
             access_token_iv, access_token_auth_tag, encryption_key_version,
             token_fingerprint, status, last_validated_at
           ) values (
-            ${context.tenantId}, ${input.accountId}, ${encrypted.ciphertext},
+            ${context.tenantId}, ${input.accountId}, ${validation.professionalAccountId},
+            ${encrypted.ciphertext},
             ${encrypted.iv}, ${encrypted.authTag}, ${encrypted.keyVersion},
             ${encrypted.fingerprint}, 'active', now()
           )
           on conflict (tenant_id) do update set
             instagram_account_id = excluded.instagram_account_id,
+            instagram_professional_account_id = excluded.instagram_professional_account_id,
             access_token_ciphertext = excluded.access_token_ciphertext,
             access_token_iv = excluded.access_token_iv,
             access_token_auth_tag = excluded.access_token_auth_tag,

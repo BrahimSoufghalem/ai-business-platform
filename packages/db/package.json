@@ -19,7 +19,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "pilot:seed": "node dist/pilot-seed.js",
-    "test:integration": "vitest run test/rls.integration.spec.ts"
+    "test:integration": "vitest run test/rls.integration.spec.ts test/instagram-webhook-identity.integration.spec.ts"
   },
   "dependencies": {
     "@ai-business/ai-gateway": "workspace:*",

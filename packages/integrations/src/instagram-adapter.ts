@@ -100,7 +100,11 @@ export interface InstagramCredentialValidationConfiguration {
 
 export async function validateInstagramCredentials(
   configuration: InstagramCredentialValidationConfiguration,
-): Promise<{ readonly accountId: string; readonly username: string | null }> {
+): Promise<{
+  readonly accountId: string;
+  readonly username: string | null;
+  readonly professionalAccountId: string;
+}> {
   if (!/^[0-9]{1,80}$/u.test(configuration.accountId)) {
     throw new InstagramConfigurationError('Instagram professional account ID is invalid.');
   }
@@ -123,7 +127,7 @@ export async function validateInstagramCredentials(
   const endpoint = new URL(
     `${baseUrl.toString().replace(/\/$/u, '')}/${version}/${configuration.accountId}`,
   );
-  endpoint.searchParams.set('fields', 'id,username');
+  endpoint.searchParams.set('fields', 'id,user_id,username');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
@@ -156,9 +160,18 @@ export async function validateInstagramCredentials(
   if (returnedId !== configuration.accountId) {
     throw new InstagramCredentialValidationError(response.status, null, 'invalid_response');
   }
+  // Instagram Login returns the app-scoped ID in `id` and the Instagram
+  // professional account ID in `user_id`. Webhook notifications identify the
+  // account by its professional account ID (`entry.id`), so it must be
+  // captured here and persisted for webhook tenant resolution.
+  const professionalAccountId = safeIdentifier(record(body)?.user_id);
+  if (!professionalAccountId || !/^[0-9]{1,80}$/u.test(professionalAccountId)) {
+    throw new InstagramCredentialValidationError(response.status, null, 'invalid_response');
+  }
   return {
     accountId: returnedId,
     username: safeIdentifier(record(body)?.username),
+    professionalAccountId,
   };
 }
 

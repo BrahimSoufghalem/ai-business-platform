@@ -1552,6 +1552,7 @@ export const instagramAccounts = pgTable(
       .notNull()
       .references(() => tenants.id, { onDelete: 'cascade' }),
     instagramAccountId: text('instagram_account_id').notNull(),
+    instagramProfessionalAccountId: text('instagram_professional_account_id'),
     accessTokenCiphertext: text('access_token_ciphertext').notNull(),
     accessTokenIv: text('access_token_iv').notNull(),
     accessTokenAuthTag: text('access_token_auth_tag').notNull(),
@@ -1566,9 +1567,16 @@ export const instagramAccounts = pgTable(
   (table) => [
     uniqueIndex('instagram_accounts_tenant_uq').on(table.tenantId),
     uniqueIndex('instagram_accounts_account_uq').on(table.instagramAccountId),
+    uniqueIndex('instagram_accounts_professional_account_uq')
+      .on(table.instagramProfessionalAccountId)
+      .where(sql`${table.instagramProfessionalAccountId} is not null`),
     check(
       'instagram_accounts_account_id_numeric',
       sql`${table.instagramAccountId} ~ '^[0-9]{1,80}$'`,
+    ),
+    check(
+      'instagram_accounts_professional_account_id_numeric',
+      sql`${table.instagramProfessionalAccountId} is null or ${table.instagramProfessionalAccountId} ~ '^[0-9]{1,80}$'`,
     ),
     check(
       'instagram_accounts_ciphertext_not_blank',

@@ -15,6 +15,7 @@ import {
 const appSecret = 'instagram-test-app-secret-123456';
 const accessToken = 'instagram-test-access-token';
 const accountId = '17841400000000000';
+const professionalAccountId = '17841400000000001';
 const tenantId = parseTenantId('11111111-1111-4111-8111-111111111111');
 
 function adapter(overrides: Partial<ConstructorParameters<typeof InstagramLiveAdapter>[0]> = {}) {
@@ -28,26 +29,60 @@ function adapter(overrides: Partial<ConstructorParameters<typeof InstagramLiveAd
 
 describe('InstagramLiveAdapter', () => {
   it('validates the connected account with Meta before credentials are stored', async () => {
-    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(JSON.stringify({ id: accountId, username: 'store.test' }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    );
+    const fetchImplementation = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ id: accountId, user_id: professionalAccountId, username: 'store.test' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
 
     await expect(
       validateInstagramCredentials({ accountId, accessToken, fetchImplementation }),
-    ).resolves.toEqual({ accountId, username: 'store.test' });
+    ).resolves.toEqual({ accountId, username: 'store.test', professionalAccountId });
     expect(fetchImplementation).toHaveBeenCalledWith(
       expect.objectContaining({
         pathname: `/v26.0/${accountId}`,
-        search: '?fields=id%2Cusername',
+        search: '?fields=id%2Cuser_id%2Cusername',
       }),
       expect.objectContaining({
         method: 'GET',
         headers: { Authorization: `Bearer ${accessToken}` },
       }),
     );
+  });
+
+  it('rejects a validation response without a numeric professional account ID', async () => {
+    for (const userId of [undefined, '', 'not-a-number']) {
+      const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(JSON.stringify({ id: accountId, user_id: userId, username: 'store.test' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+      await expect(
+        validateInstagramCredentials({ accountId, accessToken, fetchImplementation }),
+      ).rejects.toMatchObject({ reason: 'invalid_response' });
+    }
+  });
+
+  it('rejects a validation response that identifies a different account', async () => {
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: '17841499999999999',
+          user_id: professionalAccountId,
+          username: 'store.test',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    await expect(
+      validateInstagramCredentials({ accountId, accessToken, fetchImplementation }),
+    ).rejects.toMatchObject({ reason: 'invalid_response' });
   });
 
   it('rejects invalid Instagram credentials without exposing the token', async () => {

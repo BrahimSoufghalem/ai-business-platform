@@ -54,6 +54,15 @@ failed subscription rejects the connection, so every stored connection is
 subscribed. Send `PUT` again to re-subscribe an existing account, for example
 after changing webhook fields or re-issuing a token.
 
+Credential validation requests `id,user_id,username` from Meta. The returned
+`id` must match the submitted account ID, and the returned `user_id` (the
+Instagram professional account ID) is stored on the connection. Instagram
+webhook notifications identify the account by its professional account ID, so
+`app_resolve_instagram_tenant` matches an incoming webhook account ID against
+either the app-scoped ID or the professional account ID while still requiring
+an active connection. Re-save an existing connection once after this change so
+its professional account ID is captured.
+
 Set `INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY` to a secret 32-byte key encoded as
 canonical base64. Generate it with `openssl rand -base64 32`, store it in the
 deployment secret manager, and never commit it. Rotating an account token through
@@ -142,6 +151,9 @@ It requires `DATABASE_URL`, `API_INTERNAL_BASE_URL`, `INTERNAL_WORKER_TOKEN`,
 - Default version: `v26.0`, overridden only through reviewed configuration.
 - Send endpoint: `/{instagram-account-id}/messages`.
 - Recipient: the customer's Instagram-scoped ID (IGSID).
+- Webhook `entry.id` carries the Instagram professional account ID (`user_id`),
+  while `/me` returns the app-scoped ID in `id`; connections store both and
+  webhook resolution matches either.
 - Required permissions: `instagram_business_basic` and
   `instagram_business_manage_messages`.
 - Initial subscribed webhook field: `messages`. Add reactions or seen events only
