@@ -6,6 +6,8 @@ import {
   InstagramCredentialValidationError,
   InstagramDeliveryError,
   InstagramLiveAdapter,
+  InstagramSubscriptionError,
+  subscribeInstagramAccountWebhooks,
   validateInstagramCredentials,
   verifyInstagramWebhookChallenge,
 } from '../src/instagram-adapter.js';
@@ -77,6 +79,63 @@ describe('InstagramLiveAdapter', () => {
     await expect(
       validateInstagramCredentials({ accountId, accessToken, fetchImplementation }),
     ).rejects.toMatchObject({ status: 503, reason: 'provider_unavailable' });
+  });
+
+  it('subscribes the connected account to messaging webhooks', async () => {
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(
+      subscribeInstagramAccountWebhooks({ accountId, accessToken, fetchImplementation }),
+    ).resolves.toEqual({ accountId, subscribedFields: ['messages'] });
+    expect(fetchImplementation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pathname: `/v26.0/${accountId}/subscribed_apps`,
+        search: '?subscribed_fields=messages',
+      }),
+      expect.objectContaining({
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }),
+    );
+  });
+
+  it('rejects a refused webhook subscription without exposing the token', async () => {
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: { message: `Invalid token ${accessToken}`, type: 'OAuthException', code: 190 },
+        }),
+        { status: 401, headers: { 'Content-Type': 'application/json' } },
+      ),
+    );
+
+    const error = await subscribeInstagramAccountWebhooks({
+      accountId,
+      accessToken,
+      fetchImplementation,
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(InstagramSubscriptionError);
+    expect(error).toMatchObject({ status: 401, providerCode: 190, reason: 'invalid_credentials' });
+    expect(String(error)).not.toContain(accessToken);
+  });
+
+  it('treats a subscription response without success as invalid', async () => {
+    const fetchImplementation = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ success: false }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(
+      subscribeInstagramAccountWebhooks({ accountId, accessToken, fetchImplementation }),
+    ).rejects.toMatchObject({ reason: 'invalid_response' });
   });
 
   it('validates the exact raw webhook bytes with X-Hub-Signature-256', async () => {

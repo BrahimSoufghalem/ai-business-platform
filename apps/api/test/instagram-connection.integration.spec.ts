@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { createDatabaseClient } from '@ai-business/db';
+import { InstagramSubscriptionError } from '@ai-business/integrations';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DatabaseService } from '../src/database/database.service.js';
 import { InstagramConnectionService } from '../src/integrations/instagram-connection.service.js';
@@ -30,6 +31,7 @@ describeWithDatabase('Instagram tenant connection', () => {
   let database: DatabaseService;
   let connections: InstagramConnectionService;
   let webhooks: InstagramWebhookService;
+  const subscribedAccounts: string[] = [];
   const previousEnvironment: Record<string, string | undefined> = {};
 
   beforeAll(async () => {
@@ -65,10 +67,14 @@ describeWithDatabase('Instagram tenant connection', () => {
     `;
 
     database = new DatabaseService();
-    connections = new InstagramConnectionService(database, async ({ accountId }) => ({
-      accountId,
-      username: 'test-account',
-    }));
+    connections = new InstagramConnectionService(
+      database,
+      async ({ accountId }) => ({ accountId, username: 'test-account' }),
+      async ({ accountId }) => {
+        subscribedAccounts.push(accountId);
+        return { accountId, subscribedFields: ['messages'] };
+      },
+    );
     webhooks = new InstagramWebhookService(database);
   });
 
@@ -144,6 +150,47 @@ describeWithDatabase('Instagram tenant connection', () => {
     expect(stored?.iv).toBeTruthy();
     expect(stored?.authTag).toBeTruthy();
     await expect(connections.get(ownerIdentity, 'instagram-get-a', tenantA)).resolves.toEqual(view);
+  });
+
+  it('subscribes the connected account to messaging webhooks before storing it', async () => {
+    await connections.connect(ownerIdentity, 'instagram-connect-subscribe', tenantA, {
+      accountId: '17841400000000007',
+      accessToken,
+    });
+
+    expect(subscribedAccounts).toContain('17841400000000007');
+    const [audit] = await admin<{ metadata: Record<string, unknown> }[]>`
+      select metadata
+      from audit_events
+      where tenant_id = ${tenantA} and action = 'instagram.connection.saved'
+      order by created_at desc
+      limit 1
+    `;
+    expect(audit?.metadata).toMatchObject({ subscribedFields: ['messages'] });
+  });
+
+  it('rejects a connection when Meta refuses the webhook subscription', async () => {
+    const refusing = new InstagramConnectionService(
+      database,
+      async ({ accountId }) => ({ accountId, username: 'test-account' }),
+      async () => {
+        throw new InstagramSubscriptionError(401, 190, 'invalid_credentials');
+      },
+    );
+
+    await expect(
+      refusing.connect(ownerIdentity, 'instagram-connect-subscribe-refused', tenantA, {
+        accountId: '17841400000000008',
+        accessToken,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    const [stored] = await admin<{ itemCount: number }[]>`
+      select count(*)::int as "itemCount"
+      from instagram_accounts
+      where tenant_id = ${tenantA}
+    `;
+    expect(stored?.itemCount).toBe(0);
   });
 
   it('allows one tenant per Instagram account', async () => {

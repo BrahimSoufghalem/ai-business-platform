@@ -77,6 +77,18 @@ export class InstagramCredentialValidationError extends Error {
   }
 }
 
+export class InstagramSubscriptionError extends Error {
+  constructor(
+    readonly status: number,
+    readonly providerCode: number | null,
+    readonly reason:
+      'invalid_credentials' | 'invalid_response' | 'provider_unavailable' | 'network' | 'timeout',
+  ) {
+    super(`Instagram webhook subscription failed (${status}/${reason}).`);
+    this.name = 'InstagramSubscriptionError';
+  }
+}
+
 export interface InstagramCredentialValidationConfiguration {
   readonly accountId: string;
   readonly accessToken: string;
@@ -148,6 +160,96 @@ export async function validateInstagramCredentials(
     accountId: returnedId,
     username: safeIdentifier(record(body)?.username),
   };
+}
+
+export interface InstagramSubscriptionConfiguration {
+  readonly accountId: string;
+  readonly accessToken: string;
+  readonly subscribedFields?: readonly string[];
+  readonly graphApiVersion?: string;
+  readonly graphBaseUrl?: string;
+  readonly timeoutMs?: number;
+  readonly fetchImplementation?: typeof fetch;
+}
+
+/**
+ * Enables webhook notifications for one Instagram professional account.
+ *
+ * Instagram Login requires this per-account `/subscribed_apps` step in addition
+ * to the app-level webhook field selection in the Meta App Dashboard; without
+ * it Meta never delivers that account's events (for example `messages`).
+ */
+export async function subscribeInstagramAccountWebhooks(
+  configuration: InstagramSubscriptionConfiguration,
+): Promise<{ readonly accountId: string; readonly subscribedFields: readonly string[] }> {
+  if (!/^[0-9]{1,80}$/u.test(configuration.accountId)) {
+    throw new InstagramConfigurationError('Instagram professional account ID is invalid.');
+  }
+  if (configuration.accessToken.trim().length < 10) {
+    throw new InstagramConfigurationError('Instagram access token is missing or too short.');
+  }
+  const version = configuration.graphApiVersion ?? DEFAULT_GRAPH_VERSION;
+  if (!/^v[0-9]{1,2}\.[0-9]$/u.test(version)) {
+    throw new InstagramConfigurationError('Meta Graph API version is invalid.');
+  }
+  const baseUrl = new URL(configuration.graphBaseUrl ?? DEFAULT_GRAPH_BASE_URL);
+  if (baseUrl.protocol !== 'https:') {
+    throw new InstagramConfigurationError('Meta Graph base URL must use HTTPS.');
+  }
+  const timeoutMs = configuration.timeoutMs ?? 10_000;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30_000) {
+    throw new InstagramConfigurationError('Instagram timeout must be between 100 and 30000ms.');
+  }
+  const subscribedFields = [
+    ...new Set(
+      (configuration.subscribedFields ?? ['messages'])
+        .map((field) => field.trim())
+        .filter((field) => field.length > 0),
+    ),
+  ];
+  if (
+    subscribedFields.length === 0 ||
+    subscribedFields.some((field) => !/^[a-z_]{1,64}$/u.test(field))
+  ) {
+    throw new InstagramConfigurationError('Instagram webhook fields are invalid.');
+  }
+
+  const endpoint = new URL(
+    `${baseUrl.toString().replace(/\/$/u, '')}/${version}/${configuration.accountId}/subscribed_apps`,
+  );
+  endpoint.searchParams.set('subscribed_fields', subscribedFields.join(','));
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
+  try {
+    response = await (configuration.fetchImplementation ?? fetch)(endpoint, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${configuration.accessToken}` },
+      signal: controller.signal,
+    });
+  } catch {
+    throw new InstagramSubscriptionError(
+      0,
+      null,
+      controller.signal.aborted ? 'timeout' : 'network',
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  const body = (await response.json().catch(() => null)) as MetaErrorBody | null;
+  if (!response.ok) {
+    const providerError = record(record(body)?.error);
+    throw new InstagramSubscriptionError(
+      response.status,
+      typeof providerError?.code === 'number' ? providerError.code : null,
+      [400, 401, 403].includes(response.status) ? 'invalid_credentials' : 'provider_unavailable',
+    );
+  }
+  if (record(body)?.success !== true) {
+    throw new InstagramSubscriptionError(response.status, null, 'invalid_response');
+  }
+  return { accountId: configuration.accountId, subscribedFields };
 }
 
 function record(value: unknown): Record<string, unknown> | null {

@@ -14,8 +14,11 @@ import {
   InstagramCredentialError,
   InstagramCredentialValidationError,
   InstagramCredentialVault,
+  InstagramSubscriptionError,
+  subscribeInstagramAccountWebhooks,
   validateInstagramCredentials,
   type InstagramCredentialValidationConfiguration,
+  type InstagramSubscriptionConfiguration,
 } from '@ai-business/integrations';
 import { DatabaseService } from '../database/database.service.js';
 import { authorizeTenantPermission } from '../tenancy/tenant-authorization.js';
@@ -74,17 +77,28 @@ export type InstagramCredentialValidator = (
 
 export const INSTAGRAM_CREDENTIAL_VALIDATOR = Symbol('INSTAGRAM_CREDENTIAL_VALIDATOR');
 
+export type InstagramWebhookSubscriber = (
+  configuration: InstagramSubscriptionConfiguration,
+) => Promise<{ readonly accountId: string; readonly subscribedFields: readonly string[] }>;
+
+export const INSTAGRAM_WEBHOOK_SUBSCRIBER = Symbol('INSTAGRAM_WEBHOOK_SUBSCRIBER');
+
 @Injectable()
 export class InstagramConnectionService {
   private readonly validateCredentials: InstagramCredentialValidator;
+  private readonly subscribeWebhooks: InstagramWebhookSubscriber;
 
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Optional()
     @Inject(INSTAGRAM_CREDENTIAL_VALIDATOR)
     validateCredentials?: InstagramCredentialValidator,
+    @Optional()
+    @Inject(INSTAGRAM_WEBHOOK_SUBSCRIBER)
+    subscribeWebhooks?: InstagramWebhookSubscriber,
   ) {
     this.validateCredentials = validateCredentials ?? validateInstagramCredentials;
+    this.subscribeWebhooks = subscribeWebhooks ?? subscribeInstagramAccountWebhooks;
   }
 
   async get(
@@ -147,6 +161,39 @@ export class InstagramConnectionService {
       }
       throw error;
     }
+    let subscription: {
+      readonly accountId: string;
+      readonly subscribedFields: readonly string[];
+    };
+    try {
+      subscription = await this.subscribeWebhooks({
+        accountId: input.accountId,
+        accessToken: input.accessToken,
+      });
+    } catch (error) {
+      if (error instanceof InstagramConfigurationError) {
+        throw new BadRequestException(error.message);
+      }
+      if (error instanceof InstagramSubscriptionError) {
+        if (
+          error.reason === 'invalid_credentials' ||
+          error.reason === 'invalid_response' ||
+          [400, 401, 403].includes(error.status)
+        ) {
+          throw new BadRequestException(
+            'Instagram did not accept the webhook subscription. Verify the account ID, access token, and app webhook configuration.',
+          );
+        }
+        throw new ServiceUnavailableException(
+          error.reason === 'timeout'
+            ? 'Instagram did not respond in time. Try again.'
+            : error.reason === 'provider_unavailable'
+              ? 'Instagram is temporarily unavailable. Try again later.'
+              : 'Could not reach Instagram. Check the server network and try again.',
+        );
+      }
+      throw error;
+    }
     try {
       return await withTenantTransaction(this.database.client, context, async (transaction) => {
         await authorizeTenantPermission(transaction, context.tenantId, 'tenant:manage');
@@ -193,6 +240,7 @@ export class InstagramConnectionService {
             ${correlationId}, ${transaction.json({
               accountIdSuffix: input.accountId.slice(-4),
               tokenFingerprint: encrypted.fingerprint,
+              subscribedFields: subscription.subscribedFields,
             })}
           )
         `;

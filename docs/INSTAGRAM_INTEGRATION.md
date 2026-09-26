@@ -44,6 +44,16 @@ The `PUT` body is:
 }
 ```
 
+After Meta validates the credentials, `PUT` also enables webhook notifications
+for that account with
+`POST https://graph.instagram.com/{version}/{accountId}/subscribed_apps?subscribed_fields=messages`
+using the Instagram user access token. Instagram Login requires this per-account
+step in addition to the app-level webhook field selection in the Meta App
+Dashboard; without it Meta never delivers the account's events. A refused or
+failed subscription rejects the connection, so every stored connection is
+subscribed. Send `PUT` again to re-subscribe an existing account, for example
+after changing webhook fields or re-issuing a token.
+
 Set `INSTAGRAM_CREDENTIAL_ENCRYPTION_KEY` to a secret 32-byte key encoded as
 canonical base64. Generate it with `openssl rand -base64 32`, store it in the
 deployment secret manager, and never commit it. Rotating an account token through
@@ -136,6 +146,11 @@ It requires `DATABASE_URL`, `API_INTERNAL_BASE_URL`, `INTERNAL_WORKER_TOKEN`,
   `instagram_business_manage_messages`.
 - Initial subscribed webhook field: `messages`. Add reactions or seen events only
   when the product uses them.
+- Webhook delivery requires both the app-level field selection in the App
+  Dashboard and the per-account `subscribed_apps` call performed on connect.
+- Meta only delivers notifications for real users when the app is Live; serving
+  accounts the app does not own additionally requires Advanced Access and
+  business verification.
 
 References:
 
